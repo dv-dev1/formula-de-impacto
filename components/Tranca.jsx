@@ -53,26 +53,43 @@ export default function Tranca({ children }) {
     setErro("");
   };
 
+  // Mesmo cuidado do `comecar` em app/page.jsx: sem isto qualquer falha vira rejeição
+  // silenciosa e o botão só não responde, com o entrevistado esperando. Fora do https
+  // o navegador nem expõe `crypto.subtle`, e aí nenhum código vai funcionar nunca.
+  const FORA_DO_HTTPS = "Este endereço não é seguro (precisa ser https ou localhost) e o código não funciona nele.";
+
   async function cadastrar(evento) {
     evento.preventDefault();
     if (!nome.trim()) return setErro("Diga seu nome — ele vai junto de cada entrevista.");
     if (pin.length !== TAMANHO) return setErro(`O código precisa ter ${TAMANHO} números.`);
     if (pin !== confirmacao) return setErro("Os dois códigos não são iguais.");
 
-    const sal = crypto.randomUUID();
-    const conta = { nome: nome.trim(), sal, resumo: await embaralhar(pin, sal) };
-    localStorage.setItem(CHAVE, JSON.stringify(conta));
-    setAcesso(conta);
-    abrir();
+    try {
+      const sal = crypto.randomUUID();
+      const conta = { nome: nome.trim(), sal, resumo: await embaralhar(pin, sal) };
+      localStorage.setItem(CHAVE, JSON.stringify(conta));
+      setAcesso(conta);
+      abrir();
+    } catch {
+      setErro(
+        window.isSecureContext
+          ? "Não consegui guardar o acesso no aparelho. Feche e abra o app; se continuar, libere o armazenamento para este site."
+          : FORA_DO_HTTPS,
+      );
+    }
   }
 
   async function entrar(evento) {
     evento.preventDefault();
-    if ((await embaralhar(pin, acesso.sal)) !== acesso.resumo) {
-      setPin("");
-      return setErro("Código errado.");
+    try {
+      if ((await embaralhar(pin, acesso.sal)) !== acesso.resumo) {
+        setPin("");
+        return setErro("Código errado.");
+      }
+      abrir();
+    } catch {
+      setErro(window.isSecureContext ? "Não consegui conferir o código. Feche e abra o app." : FORA_DO_HTTPS);
     }
-    abrir();
   }
 
   if (acesso === undefined) return null;

@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "node --test 'test/*.test.mjs'",
+    "test": "node --test \"test/*.test.mjs\"",
     "test:ui": "node scripts/usabilidade.mjs",
     "validar": "node scripts/validar.mjs",
     "comparar": "node scripts/comparar-transcricao.mjs",
