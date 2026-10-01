@@ -4,11 +4,3 @@ compatibility_date = "2026-09-01"
 
 [ai]
 binding = "AI"
-
-[[ratelimits]]
-name = "LIMITE"
-namespace_id = "1001"
-
-[ratelimits.simple]
-limit = 20
-period = 60
