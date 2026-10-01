@@ -1,5 +1,5 @@
 {
-  "versao": "1",
+  "versao": "2",
   "perguntas": [
     {
       "id": "nome",
@@ -35,15 +35,12 @@
       "opcoes": ["Muito ruim", "Ruim", "Regular", "Boa", "Muito boa"]
     },
     {
-      "id": "maiores_faltas",
+      "id": "segmento_produtivo",
       "secao": "Território",
-      "texto": "O que mais falta aqui? (marque até 3)",
-      "tipo": "multipla",
-      "maximo": 3,
-      "opcoes": [
-        "Água", "Estrada", "Saúde", "Educação", "Transporte", "Energia",
-        "Internet", "Assistência técnica", "Crédito", "Saneamento", "Lazer e cultura"
-      ]
+      "texto": "Segmento produtivo predominante",
+      "tipo": "unica",
+      "opcoes": ["Agricultura familiar", "Bioeconomia", "Economia criativa", "Turismo", "Outro"],
+      "outro": "Outro"
     },
     {
       "id": "participa_organizacao",
@@ -309,14 +306,6 @@
       "quando": { "categoria": ["poder_publico"] }
     },
     {
-      "id": "gestao_articulacao",
-      "secao": "Gestão pública",
-      "texto": "Quanto as secretarias conversam entre si sobre o tema rural?",
-      "tipo": "escala",
-      "opcoes": ["Não conversam", "Muito pouco", "Às vezes", "Com frequência", "Trabalham juntas"],
-      "quando": { "categoria": ["poder_publico"] }
-    },
-    {
       "id": "gestao_gargalo",
       "secao": "Gestão pública",
       "texto": "Qual o maior gargalo da sua área para atender a zona rural?",
@@ -458,6 +447,132 @@
         "Só com emenda ou convênio integral", "Sem capacidade hoje"
       ],
       "quando": { "categoria": ["poder_publico"], "cargo": ["financas"] }
+    },
+
+    {
+      "id": "potencial_produtivo",
+      "secao": "Visão do território",
+      "texto": "Potencial produtivo da atividade principal",
+      "tipo": "escala",
+      "opcoes": ["Muito baixo", "Baixo", "Médio", "Alto", "Muito alto"]
+    },
+    {
+      "id": "organizacao_produtiva",
+      "secao": "Visão do território",
+      "texto": "Grau de organização produtiva",
+      "tipo": "escala",
+      "opcoes": ["Desorganizada", "Pouco organizada", "Razoável", "Organizada", "Muito organizada"]
+    },
+    {
+      "id": "dependencia_compradores",
+      "secao": "Visão do território",
+      "texto": "Dependência de poucos compradores",
+      "tipo": "escala",
+      "opcoes": ["Muito baixa", "Baixa", "Média", "Alta", "Muito alta"]
+    },
+    {
+      "id": "agregacao_valor",
+      "secao": "Visão do território",
+      "texto": "Quais formas de agregação de valor são utilizadas?",
+      "tipo": "multipla",
+      "opcoes": [
+        "Beneficiamento", "Processamento", "Embalagem diferenciada", "Certificação",
+        "Marca própria", "Comercialização digital", "Nenhuma", "Outra"
+      ],
+      "outro": "Outra"
+    },
+    {
+      "id": "articulacao_atores",
+      "secao": "Visão do território",
+      "texto": "Como avalia a articulação entre os atores do território?",
+      "tipo": "escala",
+      "opcoes": ["Muito fraca", "Fraca", "Média", "Forte", "Muito forte"]
+    },
+    {
+      "id": "instancias_governanca",
+      "secao": "Visão do território",
+      "texto": "Existem instâncias de governança atuantes?",
+      "tipo": "unica",
+      "opcoes": ["Sim", "Não", "Parcialmente"]
+    },
+    {
+      "id": "aspecto_mulheres",
+      "secao": "Visão do território",
+      "texto": "Participação das mulheres no território",
+      "tipo": "escala",
+      "opcoes": ["Muito baixo", "Baixo", "Médio", "Alto", "Muito alto"]
+    },
+    {
+      "id": "aspecto_jovens",
+      "secao": "Visão do território",
+      "texto": "Participação dos jovens no território",
+      "tipo": "escala",
+      "opcoes": ["Muito baixo", "Baixo", "Médio", "Alto", "Muito alto"]
+    },
+    {
+      "id": "aspecto_tecnologias",
+      "secao": "Visão do território",
+      "texto": "Adoção de tecnologias no território",
+      "tipo": "escala",
+      "opcoes": ["Muito baixo", "Baixo", "Médio", "Alto", "Muito alto"]
+    },
+    {
+      "id": "aspecto_ambiental",
+      "secao": "Visão do território",
+      "texto": "Sustentabilidade ambiental do território",
+      "tipo": "escala",
+      "opcoes": ["Muito baixo", "Baixo", "Médio", "Alto", "Muito alto"]
+    },
+    {
+      "id": "aspecto_inovacao",
+      "secao": "Visão do território",
+      "texto": "Capacidade de inovação do território",
+      "tipo": "escala",
+      "opcoes": ["Muito baixo", "Baixo", "Médio", "Alto", "Muito alto"]
+    },
+    {
+      "id": "aspecto_cooperacao",
+      "secao": "Visão do território",
+      "texto": "Cooperação entre as organizações do território",
+      "tipo": "escala",
+      "opcoes": ["Muito baixo", "Baixo", "Médio", "Alto", "Muito alto"]
+    },
+    {
+      "id": "desafios_territorio",
+      "secao": "Visão do território",
+      "texto": "Quais os principais desafios do território? (marque até 5)",
+      "tipo": "multipla",
+      "maximo": 5,
+      "opcoes": [
+        "Crédito", "Comercialização", "Logística", "Infraestrutura", "Assistência técnica",
+        "Regularização fundiária", "Capacitação", "Conectividade digital", "Governança",
+        "Mudanças climáticas"
+      ]
+    },
+    {
+      "id": "apoios_necessarios",
+      "secao": "Visão do território",
+      "texto": "Quais apoios são mais necessários? (marque até 5)",
+      "tipo": "multipla",
+      "maximo": 5,
+      "opcoes": [
+        "Crédito", "Assistência técnica", "Capacitação", "Comercialização", "Infraestrutura",
+        "Tecnologias digitais", "Certificação", "Fortalecimento organizacional", "Logística",
+        "Acesso a mercados institucionais"
+      ]
+    },
+
+    {
+      "id": "oportunidades_3_anos",
+      "secao": "Encerramento",
+      "texto": "Quais oportunidades merecem prioridade nos próximos 3 anos?",
+      "tipo": "audio"
+    },
+    {
+      "id": "consideracoes_finais",
+      "secao": "Encerramento",
+      "texto": "Considerações adicionais relevantes",
+      "tipo": "audio"
     }
   ]
 }

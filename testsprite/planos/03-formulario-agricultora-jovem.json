@@ -2,13 +2,13 @@
   "projectId": "0e0772fb-f01a-4e04-81c3-68e0bc4c0e2a",
   "type": "frontend",
   "name": "Formulario da agricultora jovem",
-  "description": "O perfil escolhido monta o formulario: agricultora jovem recebe entre 20 e 25 perguntas, incluindo as de juventude rural.",
+  "description": "O perfil escolhido monta o formulario: agricultora jovem recebe entre 23 e 41 perguntas, incluindo as de juventude rural.",
   "priority": "p0",
   "planSteps": [
     { "type": "action", "description": "Abrir a pagina inicial e criar o acesso com nome 'Entrevistador de Teste', codigo de acesso '1234' e confirmacao '1234'." },
     { "type": "action", "description": "Na tela inicial, escolher a categoria 'Agricultor(a) familiar', a faixa 'Jovem (ate 29 anos)' e o genero 'Mulher'." },
     { "type": "action", "description": "Tocar em 'Comecar entrevista'." },
-    { "type": "assertion", "description": "O formulario abre com entre 20 e 25 perguntas numeradas. Contar os cartoes de pergunta na pagina inteira, rolando ate o fim." },
+    { "type": "assertion", "description": "O formulario abre com entre 23 e 41 perguntas numeradas. Contar os cartoes de pergunta na pagina inteira, rolando ate o fim." },
     { "type": "assertion", "description": "Existe a pergunta sobre continuar morando na zona rural depois do ensino medio." },
     { "type": "assertion", "description": "O rodape mostra o progresso no formato '0 de N' e o botao 'Concluir' aparece desabilitado enquanto nada foi respondido." }
   ]

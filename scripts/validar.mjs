@@ -133,13 +133,13 @@ await cenario("2-montagem", async () => {
   await abrirEntrevista(["Agricultor(a) familiar", "Jovem (até 29 anos)", "Mulher"]);
   const jovem = await contarCartoes();
   const temJuventude = (await textoDaTela()).includes("continuar morando na zona rural");
-  checar("2-montagem: agricultora jovem recebe de 20 a 25 perguntas", jovem >= 20 && jovem <= 25, `${jovem} perguntas`);
+  checar("2-montagem: agricultora jovem recebe de 23 a 41 perguntas", jovem >= 23 && jovem <= 41, `${jovem} perguntas`);
   checar("2-montagem: perfil jovem recebe a pergunta de permanência no campo", temJuventude);
 
   await abrirEntrevista(["Poder público", "Prefeito(a)", "Homem"]);
   const prefeito = await contarCartoes();
   const tela = await textoDaTela();
-  checar("2-montagem: prefeito recebe de 20 a 25 perguntas", prefeito >= 20 && prefeito <= 25, `${prefeito} perguntas`);
+  checar("2-montagem: prefeito recebe de 23 a 41 perguntas", prefeito >= 23 && prefeito <= 41, `${prefeito} perguntas`);
   checar("2-montagem: prefeito não recebe pergunta de juventude rural", !tela.includes("continuar morando na zona rural"));
   checar("2-montagem: prefeito recebe pergunta de gestão", tela.includes("gargalo"));
 });

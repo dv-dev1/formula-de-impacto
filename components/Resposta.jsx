@@ -11,8 +11,22 @@ function Opcao({ rotulo, marcada, redonda, aoTocar }) {
   );
 }
 
-export default function Resposta({ pergunta, valor, entrevistaId, aoResponder }) {
+function CampoOutro({ pergunta, valor, texto, aoResponder }) {
+  if (!pergunta.outro || ![].concat(valor ?? []).includes(pergunta.outro)) return null;
+  return (
+    <input
+      type="text"
+      placeholder="Qual?"
+      value={texto ?? ""}
+      onChange={(e) => aoResponder(`${pergunta.id}_outro`, e.target.value)}
+      aria-label={`${pergunta.texto}: qual?`}
+    />
+  );
+}
+
+export default function Resposta({ pergunta, valor, textoOutro, entrevistaId, aoResponder }) {
   const trocar = (novo) => aoResponder(pergunta.id, novo);
+  const outro = <CampoOutro pergunta={pergunta} valor={valor} texto={textoOutro} aoResponder={aoResponder} />;
 
   if (pergunta.tipo === "texto" || pergunta.tipo === "numero") {
     return (
@@ -57,6 +71,7 @@ export default function Resposta({ pergunta, valor, entrevistaId, aoResponder })
             aoTocar={() => trocar(valor === opcao ? undefined : opcao)}
           />
         ))}
+        {outro}
       </div>
     );
   }
@@ -87,6 +102,7 @@ export default function Resposta({ pergunta, valor, entrevistaId, aoResponder })
             />
           );
         })}
+        {outro}
         {pergunta.maximo && (
           <p className="discreto">
             {marcadas.length} de {pergunta.maximo} marcadas

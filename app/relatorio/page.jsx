@@ -108,6 +108,11 @@ export default function Ficha() {
                     valor={entrevista.respostas[pergunta.id]}
                     audios={audios}
                   />
+                  {entrevista.respostas[`${pergunta.id}_outro`] && (
+                    <p style={{ margin: "6px 0 0" }}>
+                      {pergunta.outro}: {entrevista.respostas[`${pergunta.id}_outro`]}
+                    </p>
+                  )}
                 </div>
               ))}
             </div>

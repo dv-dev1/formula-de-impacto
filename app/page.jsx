@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 
 import Icone from "@/components/Icone";
 import Topo from "@/components/Topo";
+import { CHAVE } from "@/components/Tranca";
 import banco from "@/data/perguntas.json";
 import { apagarEntrevista, listarEntrevistas, novoId, salvarEntrevista } from "@/lib/db.mjs";
 import { baixar, montarZip } from "@/lib/exportar.mjs";
@@ -73,9 +74,10 @@ export default function Inicio() {
   }, [router]);
 
   const publico = perfil.categoria === "poder_publico";
-  const completo = publico
-    ? Boolean(perfil.cargo && perfil.genero)
-    : Boolean(perfil.categoria && perfil.faixa && perfil.genero);
+  const semFaixa = CATEGORIAS.find((c) => c.valor === perfil.categoria)?.semFaixa;
+  const completo = Boolean(
+    perfil.categoria && perfil.genero && (publico ? perfil.cargo : semFaixa || perfil.faixa),
+  );
   const naoExportadas = entrevistas.filter(
     (e) => !ultimaExportacao || (e.atualizadaEm ?? e.iniciadaEm) > ultimaExportacao,
   ).length;
@@ -86,7 +88,7 @@ export default function Inicio() {
     const escolhido = publico ? { ...perfil, faixa: "adulto" } : perfil;
     let entrevistador = "";
     try {
-      entrevistador = JSON.parse(localStorage.getItem("acesso-formula-impacto") || "{}").nome || "";
+      entrevistador = JSON.parse(localStorage.getItem(CHAVE) || "{}").nome || "";
     } catch {
       entrevistador = "";
     }
@@ -172,7 +174,7 @@ export default function Inicio() {
           />
         )}
 
-        {perfil.categoria && !publico && (
+        {perfil.categoria && !publico && !semFaixa && (
           <Escolha
             titulo="Faixa etária"
             itens={FAIXAS}

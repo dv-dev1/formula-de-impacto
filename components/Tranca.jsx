@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import Icone from "./Icone";
 
-const CHAVE = "acesso-formula-impacto";
+export const CHAVE = "acesso-formula-impacto";
 const ABERTA = "acesso-liberado";
 const TAMANHO = 4;
 

@@ -156,6 +156,7 @@ export default function Formulario() {
                     <Resposta
                       pergunta={pergunta}
                       valor={valor}
+                      textoOutro={entrevista.respostas[`${pergunta.id}_outro`]}
                       entrevistaId={entrevista.id}
                       aoResponder={responder}
                     />

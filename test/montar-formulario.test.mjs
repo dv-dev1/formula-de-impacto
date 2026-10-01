@@ -9,6 +9,7 @@ const ids = (perfil, respostas) => montarFormulario(banco, perfil, respostas).ma
 
 const agricultorJovem = { categoria: "agricultor", faixa: "jovem", genero: "masculino" };
 const prefeito = { categoria: "poder_publico", cargo: "prefeito", faixa: "adulto", genero: "masculino" };
+const lideranca = { categoria: "lideranca", genero: "feminino" };
 
 test("agricultor jovem recebe a pergunta de permanência no campo", () => {
   assert.ok(ids(agricultorJovem).includes("jovem_permanencia"));
@@ -47,7 +48,9 @@ test("mulher assentada recebe o bloco de autonomia; homem não", () => {
   assert.ok(!ids({ ...base, genero: "masculino" }).includes("renda_propria"));
 });
 
-test("todo perfil fica na faixa de 20 a 25 perguntas que o formulário de papel tinha", () => {
+// Prende o tamanho de hoje: pergunta nova que estoura a entrevista em campo tem que ser decisão,
+// não efeito colateral de editar o JSON.
+test("todo perfil fica entre 23 e 41 perguntas", () => {
   const perfis = [];
   for (const categoria of ["agricultor", "quilombola", "assentado"]) {
     for (const faixa of ["jovem", "adulto"]) {
@@ -58,10 +61,40 @@ test("todo perfil fica na faixa de 20 a 25 perguntas que o formulário de papel 
   for (const cargo of cargos) {
     perfis.push({ categoria: "poder_publico", cargo, faixa: "adulto", genero: "masculino" });
   }
+  for (const categoria of ["lideranca", "cooperativa", "ater", "instituicao_financeira", "outro_ator"]) {
+    perfis.push({ categoria, genero: "feminino" });
+  }
   for (const perfil of perfis) {
     const total = ids(perfil).length;
-    assert.ok(total >= 20 && total <= 25, `${JSON.stringify(perfil)} gerou ${total}`);
+    assert.ok(total >= 23 && total <= 41, `${JSON.stringify(perfil)} gerou ${total}`);
   }
+});
+
+test("ator sem faixa recebe a visão do território e nenhum bloco de produtor ou de jovem", () => {
+  const doLider = ids(lideranca);
+  assert.ok(doLider.includes("articulacao_atores"));
+  assert.ok(doLider.includes("consideracoes_finais"));
+  assert.ok(!doLider.includes("jovem_permanencia"));
+  assert.ok(!doLider.includes("escoamento"));
+});
+
+test("prefeito recebe a articulação entre atores no lugar da conversa entre secretarias", () => {
+  assert.ok(ids(prefeito).includes("articulacao_atores"));
+  assert.ok(!ids(prefeito).includes("gestao_articulacao"));
+});
+
+test("texto de Outra some quando Outra é desmarcada e fica enquanto marcada", () => {
+  const marcada = { agregacao_valor: ["Beneficiamento", "Outra"], agregacao_valor_outro: "Mel em sachê" };
+  assert.equal(limparOrfas(banco, lideranca, marcada).agregacao_valor_outro, "Mel em sachê");
+  const desmarcada = { ...marcada, agregacao_valor: ["Beneficiamento"] };
+  assert.ok(!("agregacao_valor_outro" in limparOrfas(banco, lideranca, desmarcada)));
+});
+
+test("texto de Outro funciona em escolha única", () => {
+  const respostas = { segmento_produtivo: "Outro", segmento_produtivo_outro: "Pesca artesanal" };
+  assert.equal(limparOrfas(banco, lideranca, respostas).segmento_produtivo_outro, "Pesca artesanal");
+  const trocada = { ...respostas, segmento_produtivo: "Turismo" };
+  assert.ok(!("segmento_produtivo_outro" in limparOrfas(banco, lideranca, trocada)));
 });
 
 test("ids do banco são únicos e toda condicional aponta para pergunta existente", () => {
@@ -97,7 +130,7 @@ test("seções saem agrupadas e na ordem do banco", () => {
 test("progresso conta áudio gravado como resposta e texto vazio como pendência", () => {
   const perguntas = montarFormulario(banco, agricultorJovem);
   assert.deepEqual(progresso(perguntas, {}), { feitas: 0, total: perguntas.length });
-  const parcial = { nome: "  ", idade: 19, jovem_uma_mudanca: { audioId: "a1" }, maiores_faltas: [] };
+  const parcial = { nome: "  ", idade: 19, jovem_uma_mudanca: { audioId: "a1" }, desafios_territorio: [] };
   assert.equal(progresso(perguntas, parcial).feitas, 2);
 });
 
@@ -133,4 +166,8 @@ test("idade acima de 29 com faixa jovem, ou até 29 com faixa adulto, pede confe
 test("sem idade ou poder público não gera aviso de faixa", () => {
   assert.equal(idadeForaDaFaixa(agricultorJovem, {}), false);
   assert.equal(idadeForaDaFaixa(prefeito, { idade: "25" }), false);
+});
+
+test("ator que entrou sem faixa não recebe aviso de idade", () => {
+  assert.equal(idadeForaDaFaixa(lideranca, { idade: "25" }), false);
 });

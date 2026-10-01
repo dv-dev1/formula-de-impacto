@@ -1,15 +1,16 @@
 # CAIXA Fórmula de Impacto
 
 Formulário de entrevista de campo para diagnóstico territorial. O entrevistador escolhe quem está na
-frente dele e o aparelho monta na hora só as perguntas daquele agente — prefeito e secretários, ou
-agricultor, quilombola e assentado cruzados com gênero e faixa etária.
+frente dele e o aparelho monta na hora só as perguntas daquele agente — prefeito e secretários,
+agricultor, quilombola e assentado cruzados com gênero e faixa etária, ou liderança, cooperativa,
+ATER e instituição financeira. Todos respondem ao mesmo bloco de visão do território.
 
 Funciona sem sinal de celular: é onde a entrevista acontece.
 
 ```
 $ npm test
-# tests 43
-# pass 43
+# tests 53
+# pass 53
 # fail 0
 
 $ npm run validar
@@ -44,7 +45,7 @@ Uma pergunta pertence a um perfil por tag, não por formulário separado:
 }
 ```
 
-São 17 perfis possíveis e cada um recebe de 20 a 25 perguntas — um teste prende esse intervalo.
+São 22 perfis possíveis e cada um recebe de 23 a 41 perguntas — um teste prende esse intervalo.
 
 ## Transcrição
 

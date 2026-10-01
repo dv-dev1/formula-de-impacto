@@ -53,7 +53,25 @@ test("CSV prefere o texto digitado quando existe junto do áudio", () => {
 test("CSV tem uma coluna por pergunta do banco, para todo perfil caber na mesma planilha", () => {
   const [cabecalho] = montarCsv(banco, []).split("\r\n");
   const colunas = cabecalho.split('","').length;
-  assert.equal(colunas, banco.perguntas.length + 7);
+  const comOutro = banco.perguntas.filter((p) => p.outro).length;
+  assert.equal(colunas, banco.perguntas.length + comOutro + 7);
+});
+
+test("CSV põe o texto de Outra na coluna logo depois da pergunta dona", () => {
+  const csv = montarCsv(banco, [
+    entrevista("a", jovem, { agregacao_valor: ["Outra"], agregacao_valor_outro: "Mel em sachê" }),
+  ]);
+  const [cabecalho, linha] = csv.split("\r\n");
+  const colunas = cabecalho.slice(1, -1).split('","');
+  const dona = colunas.indexOf("agregacao_valor");
+  assert.equal(colunas[dona + 1], "agregacao_valor_outro");
+  assert.ok(linha.includes('"Outra","Mel em sachê"'));
+});
+
+test("CSV mantém a coluna de pergunta que saiu do banco, com a resposta antiga", () => {
+  assert.ok(!banco.perguntas.some((p) => p.id === "maiores_faltas"));
+  const [cabecalho] = montarCsv(banco, [entrevista("a", jovem, { maiores_faltas: ["Água"] })]).split("\r\n");
+  assert.ok(cabecalho.includes('"maiores_faltas"'));
 });
 
 test("consolidado conta cada opção e ignora quem nunca recebeu a pergunta", () => {
@@ -70,13 +88,13 @@ test("consolidado conta cada opção e ignora quem nunca recebeu a pergunta", ()
 
 test("consolidado soma cada opção marcada numa múltipla escolha", () => {
   const linhas = consolidar(banco, [
-    entrevista("a", jovem, { maiores_faltas: ["Água", "Estrada"] }),
-    entrevista("b", jovem, { maiores_faltas: ["Água"] }),
+    entrevista("a", jovem, { desafios_territorio: ["Crédito", "Logística"] }),
+    entrevista("b", jovem, { desafios_territorio: ["Crédito"] }),
   ]);
-  const faltas = linhas.find((l) => l.pergunta.id === "maiores_faltas").contagem;
-  assert.equal(faltas.find((c) => c.opcao === "Água").total, 2);
-  assert.equal(faltas.find((c) => c.opcao === "Estrada").total, 1);
-  assert.equal(faltas.find((c) => c.opcao === "Saúde").total, 0);
+  const desafios = linhas.find((l) => l.pergunta.id === "desafios_territorio").contagem;
+  assert.equal(desafios.find((c) => c.opcao === "Crédito").total, 2);
+  assert.equal(desafios.find((c) => c.opcao === "Logística").total, 1);
+  assert.equal(desafios.find((c) => c.opcao === "Governança").total, 0);
 });
 
 test("consolidado não mostra pergunta condicional que não abriu para ninguém", () => {
