@@ -1,14 +1,21 @@
-const CACHE = "formula-de-impacto-v4";
-const ROTAS = ["/", "/entrevista/", "/relatorio/", "/consolidado/", "/manifest.webmanifest"];
+const VERSAO = "dev";
+const ARQUIVOS = ["/", "/entrevista/", "/relatorio/", "/consolidado/", "/aparelho/", "/manifest.webmanifest"];
+const CACHE = `formula-de-impacto-${VERSAO}`;
 
-// Uma rota por vez: `addAll` é tudo-ou-nada e uma URL renomeada deixaria o app sem SW nenhum.
 self.addEventListener("install", (evento) => {
-  evento.waitUntil(
-    caches
-      .open(CACHE)
-      .then((cache) => Promise.all(ROTAS.map((rota) => cache.add(rota).catch(() => {}))))
-      .then(() => self.skipWaiting()),
-  );
+  evento.waitUntil((async () => {
+    const chaves = await caches.keys();
+    const cache = await caches.open(CACHE);
+    const resultados = await Promise.allSettled(ARQUIVOS.map((url) => cache.add(url)));
+    const falhou = resultados.some((r) => r.status === "rejected");
+    const anterior = chaves.some((c) => c !== CACHE && c.startsWith("formula-de-impacto-"));
+    // Uma atualização parcial não pode substituir o cache completo que já funciona em campo.
+    if (falhou && anterior) {
+      await caches.delete(CACHE);
+      throw new Error("Não consegui guardar todos os arquivos da atualização.");
+    }
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener("activate", (evento) => {
@@ -46,11 +53,10 @@ self.addEventListener("fetch", (evento) => {
   // em campo nunca receberia correção. O cache responde quando não há sinal.
   evento.respondWith(
     fetch(request)
-      .then((resposta) => guardar(request, resposta))
       .catch(() =>
         caches
           .match(request, { ignoreSearch: true })
-          .then((achado) => achado ?? (request.mode === "navigate" ? caches.match("/") : undefined)),
+          .then((achado) => (achado && new Response(achado.body, achado)) ?? (request.mode === "navigate" ? caches.match("/") : undefined)),
       ),
   );
 });

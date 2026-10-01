@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { novoId, obterAudio, salvarAudio } from "@/lib/db.mjs";
+import { registrarErro } from "@/lib/registro.mjs";
 import { FORMATOS } from "@/lib/formatos-audio.mjs";
 import { desenfileirar, enfileirar, juntarTranscricao, semTranscricaoAntiga, transcrever } from "@/lib/transcrever.mjs";
 import Icone from "./Icone";
@@ -100,13 +101,20 @@ export default function GravadorAudio({ entrevistaId, perguntaId, valor, aoGrava
         stream.getTracks().forEach((faixa) => faixa.stop());
         const duracao = Math.round((Date.now() - inicioRef.current) / 1000);
         const id = novoId();
-        await salvarAudio({
-          id,
-          entrevistaId,
-          perguntaId,
-          blob: new Blob(pedacos, { type: gravador.mimeType }),
-          extensao: formato.extensao,
-        });
+        try {
+          await salvarAudio({
+            id,
+            entrevistaId,
+            perguntaId,
+            blob: new Blob(pedacos, { type: gravador.mimeType }),
+            extensao: formato.extensao,
+          });
+        } catch (erro) {
+          setErro("Não consegui guardar o áudio no aparelho. Anote a resposta no campo abaixo.");
+          registrarErro("gravador", erro);
+          setGravando(false);
+          return;
+        }
         aoGravar({ ...semTranscricaoAntiga(valorRef.current), audioId: id, duracao });
         setGravando(false);
         transcreverAgora(id);

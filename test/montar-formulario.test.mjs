@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { agruparPorSecao, idadeForaDaFaixa, limparOrfas, montarFormulario, progresso, respondida } from "../lib/montar-formulario.mjs";
+import { agruparPorSecao, idadeForaDaFaixa, limparOrfas, montarFormulario, progresso, respondida, respostasForaDoBanco } from "../lib/montar-formulario.mjs";
 
 const banco = JSON.parse(readFileSync(new URL("../data/perguntas.json", import.meta.url)));
 const ids = (perfil, respostas) => montarFormulario(banco, perfil, respostas).map((p) => p.id);
@@ -170,4 +170,30 @@ test("sem idade ou poder público não gera aviso de faixa", () => {
 
 test("ator que entrou sem faixa não recebe aviso de idade", () => {
   assert.equal(idadeForaDaFaixa(lideranca, { idade: "25" }), false);
+});
+
+
+test("respostas de perguntas removidas conservam id e valor fora do banco", () => {
+  const respostas = { nome: "João", maiores_faltas: ["Água", "Estrada"], fala_antiga: { audioId: "a1", texto: "Crédito" } };
+  assert.deepEqual(respostasForaDoBanco(banco, respostas), [
+    { id: "maiores_faltas", valor: ["Água", "Estrada"] },
+    { id: "fala_antiga", valor: respostas.fala_antiga },
+  ]);
+  assert.deepEqual(respostasForaDoBanco(banco, { nome: "João" }), []);
+  assert.deepEqual(respostasForaDoBanco(banco, {}), []);
+  assert.deepEqual(respostasForaDoBanco(banco, { segmento_produtivo: ["Outro"], segmento_produtivo_outro: "pesca" }), []);
+});
+
+test("integridade do banco: tipos, opções, outro, máximo e ids válidos", () => {
+  const copia = structuredClone(banco);
+  const tipos = new Set(["texto", "numero", "unica", "escala", "multipla", "audio"]);
+  const ids = copia.perguntas.map((p) => p.id);
+  assert.equal(new Set(ids).size, ids.length, "ids repetidos");
+  for (const pergunta of copia.perguntas) {
+    assert.ok(tipos.has(pergunta.tipo), `${pergunta.id}: tipo desconhecido`);
+    if (pergunta.outro !== undefined) assert.ok(pergunta.opcoes?.includes(pergunta.outro), `${pergunta.id}: outro fora das opções`);
+    if (pergunta.maximo !== undefined) assert.ok(pergunta.maximo < pergunta.opcoes?.length, `${pergunta.id}: máximo não menor que opções`);
+    if (pergunta.tipo === "escala") assert.equal(pergunta.opcoes?.length, 5, `${pergunta.id}: escala sem cinco opções`);
+    if (["unica", "multipla"].includes(pergunta.tipo)) assert.ok(pergunta.opcoes?.length >= 2, `${pergunta.id}: menos de duas opções`);
+  }
 });

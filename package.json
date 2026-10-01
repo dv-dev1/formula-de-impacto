@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build && node scripts/carimbar-sw.mjs",
     "start": "next start",
     "test": "node --test \"test/*.test.mjs\"",
     "test:ui": "node scripts/usabilidade.mjs",
@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "jszip": "^3.10.1",
-    "next": "^15.5.4",
+    "next": "^15.5.27",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   }

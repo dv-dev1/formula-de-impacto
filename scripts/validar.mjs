@@ -498,6 +498,95 @@ await cenario("13-limite", async () => {
 
 // ---------------------------------------------------------------------------
 
+await cenario("14-sw-precache", async () => {
+  await rede(false);
+  await irPara("/");
+  await passarPelaTranca("1234");
+  const controla = await ate(() => js(`return Boolean(navigator.serviceWorker?.controller);`), 25);
+  checar("14-sw-precache: service worker controla a página", controla);
+  if (!controla) throw new Error("service worker não assumiu o controle");
+  await cdp("Network.setCacheDisabled", { cacheDisabled: true });
+  try {
+    await rede(true);
+    await irPara("/aparelho/");
+    const aparelho = await textoDaTela();
+    checar("14-sw-precache: aparelho abre offline sem visita anterior no cenário",
+      aparelho.includes("Versão do app:") && !aparelho.includes("Quem você vai entrevistar?"), aparelho.slice(0, 120));
+    await irPara("/relatorio/");
+    const ficha = await textoDaTela();
+    checar("14-sw-precache: relatório abre offline sem cair na página inicial",
+      ficha.includes("Entrevista não encontrada neste aparelho.") && !ficha.includes("Quem você vai entrevistar?"), ficha.slice(0, 120));
+  } finally {
+    await rede(false);
+    await cdp("Network.setCacheDisabled", { cacheDisabled: false });
+  }
+});
+
+await cenario("15-gravador-falha", async () => {
+  await abrirEntrevista(["Agricultor(a) familiar", "Adulto", "Homem"]);
+  await js(`
+    window.__gravarOriginal = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (...argumentos) {
+      if (this.name === "audios") throw new Error("falha de armazenamento simulada");
+      return window.__gravarOriginal.apply(this, argumentos);
+    };
+    const botao = [...document.querySelectorAll("button")].find((b) => b.textContent.trim() === "Gravar resposta");
+    window.__gravadorSabotado = botao?.parentElement;
+    return Boolean(botao);
+  `);
+  try {
+    await gravar(3);
+    const avisou = await ate(() => js(`
+      return Boolean(window.__gravadorSabotado?.innerText.includes("Não consegui guardar o áudio no aparelho. Anote a resposta no campo abaixo."));
+    `), 10);
+    checar("15-gravador-falha: falha ao guardar áudio aparece na tela", avisou);
+    const liberou = await js(`
+      const botao = window.__gravadorSabotado?.querySelector("button");
+      return Boolean(botao) && botao.textContent.trim() === "Gravar resposta" && !botao.disabled;
+    `);
+    checar("15-gravador-falha: botão volta para Gravar", liberou);
+  } finally {
+    await js(`
+      IDBObjectStore.prototype.put = window.__gravarOriginal;
+      delete window.__gravarOriginal;
+      delete window.__gravadorSabotado;
+      return true;
+    `);
+  }
+});
+
+await cenario("19-csp", async () => {
+  await rede(false);
+  await irPara("/");
+  await passarPelaTranca("1234");
+  const cabecalho = await js(`
+    const resposta = await fetch("/", { cache: "no-store" });
+    return resposta.headers.get("content-security-policy");
+  `);
+  checar("19-csp: resposta da página inicial traz CSP", Boolean(cabecalho), cabecalho || "ausente");
+  await js(`sessionStorage.setItem("validacao-csp", "[]"); return true;`);
+  const script = await cdp("Page.addScriptToEvaluateOnNewDocument", {
+    source: `
+      window.addEventListener("securitypolicyviolation", (evento) => {
+        const lista = JSON.parse(sessionStorage.getItem("validacao-csp") || "[]");
+        lista.push({ rota: location.pathname, diretiva: evento.effectiveDirective, bloqueado: evento.blockedURI });
+        sessionStorage.setItem("validacao-csp", JSON.stringify(lista));
+      });
+    `,
+  });
+  if (!script.identifier) throw new Error("não consegui instalar o listener de CSP");
+  try {
+    for (const rota of ["/", "/aparelho/", "/relatorio/", "/consolidado/", "/entrevista/"]) {
+      await irPara(rota);
+    }
+    const violacoes = await js(`return JSON.parse(sessionStorage.getItem("validacao-csp") || "[]");`);
+    checar("19-csp: navegação pelas rotas não viola a política", violacoes.length === 0, JSON.stringify(violacoes));
+  } finally {
+    await cdp("Page.removeScriptToEvaluateOnNewDocument", { identifier: script.identifier });
+    await js(`sessionStorage.removeItem("validacao-csp"); return true;`);
+  }
+});
+
 fechar();
 
 const falhas = resultados.filter((r) => !r.ok);

@@ -11,10 +11,9 @@ import banco from "@/data/perguntas.json";
 import { apagarEntrevista, listarEntrevistas, novoId, salvarEntrevista } from "@/lib/db.mjs";
 import { baixar, montarZip } from "@/lib/exportar.mjs";
 import { montarFormulario, progresso } from "@/lib/montar-formulario.mjs";
+import { ULTIMA_EXPORTACAO, infoDoAparelho, registrarErro } from "@/lib/registro.mjs";
 import { CARGOS, CATEGORIAS, FAIXAS, GENEROS, descreverPerfil } from "@/lib/rotulos.mjs";
 import { pendentes } from "@/lib/transcrever.mjs";
-
-const EXPORTADO = "ultima-exportacao";
 
 const lerLocal = (chave) => {
   try {
@@ -64,12 +63,10 @@ export default function Inicio() {
     };
     atualizar();
     window.addEventListener("transcrito", atualizar);
-    setUltimaExportacao(lerLocal(EXPORTADO));
+    setUltimaExportacao(lerLocal(ULTIMA_EXPORTACAO));
     // ponytail: persisted() no Safari iOS a confirmar; o aviso some se ele sempre disser false sem PWA.
     navigator.storage?.persisted?.().then(setPersistido, () => {});
-    // Baixa o código das outras telas enquanto ainda há sinal. O service worker só guarda
-    // o que passou pela rede: sem isto, abrir a entrevista offline cai numa rota sem chunk.
-    for (const rota of ["/entrevista/", "/relatorio/", "/consolidado/"]) router.prefetch(rota);
+    for (const rota of ["/entrevista/", "/relatorio/", "/consolidado/", "/aparelho/"]) router.prefetch(rota);
     return () => window.removeEventListener("transcrito", atualizar);
   }, [router]);
 
@@ -98,6 +95,7 @@ export default function Inicio() {
       entrevistador,
       respostas: {},
       bancoVersao: banco.versao,
+      appVersao: process.env.NEXT_PUBLIC_VERSAO,
       iniciadaEm: new Date().toISOString(),
       concluidaEm: null,
     };
@@ -123,17 +121,21 @@ export default function Inicio() {
 
   async function exportar() {
     setExportando(true);
+    setFalha("");
     try {
       // Antes do ZIP: o que a fila gravar durante a montagem não está nele e tem que contar.
       const agora = new Date().toISOString();
-      const { blob, total } = await montarZip(banco);
+      const { blob, total } = await montarZip(banco, { aparelho: await infoDoAparelho() });
       baixar(blob, `entrevistas-${agora.slice(0, 10)}-${total}.zip`);
       try {
-        localStorage.setItem(EXPORTADO, agora);
+        localStorage.setItem(ULTIMA_EXPORTACAO, agora);
       } catch {
         /* sem armazenamento o aviso só continua aparecendo */
       }
       setUltimaExportacao(agora);
+    } catch (erro) {
+      setFalha("Não consegui exportar as entrevistas. Tente de novo.");
+      registrarErro("exportar", erro);
     } finally {
       setExportando(false);
     }
@@ -269,6 +271,7 @@ export default function Inicio() {
             </div>
           </>
         )}
+        <Link href="/aparelho/" className="discreto">Aparelho e versão</Link>
         </main>
       </div>
 

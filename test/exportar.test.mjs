@@ -4,7 +4,7 @@ import test from "node:test";
 
 import JSZip from "jszip";
 
-import { LEIAME, audiosDaResposta, consolidar, juntarEntrevistas, lerExportacao, montarCsv } from "../lib/exportar.mjs";
+import { LEIAME, audiosDaResposta, consolidar, juntarEntrevistas, lerExportacao, montarCsv, montarZip, pastaDa } from "../lib/exportar.mjs";
 import { EXTENSOES } from "../lib/formatos-audio.mjs";
 
 const banco = JSON.parse(readFileSync(new URL("../data/perguntas.json", import.meta.url)));
@@ -146,4 +146,53 @@ test("importar ZIP lê entrevistas.json e descarta item malformado", async () =>
 test("importar JSON solto também funciona", async () => {
   const arquivo = new File([JSON.stringify({ entrevistas: [entrevista("a", jovem, {})] })], "entrevistas.json");
   assert.equal((await lerExportacao(arquivo)).length, 1);
+});
+
+
+test("pastas de homônimos no mesmo dia incluem o id e não se sobrescrevem", () => {
+  const primeira = pastaDa(entrevista("12345678-aaaa", jovem, { nome: "João da Silva" }));
+  const segunda = pastaDa(entrevista("87654321-bbbb", jovem, { nome: "João da Silva" }));
+  assert.equal(primeira, "2026-09-04-joao-da-silva-12345678");
+  assert.equal(segunda, "2026-09-04-joao-da-silva-87654321");
+  assert.notEqual(primeira, segunda);
+  assert.equal(pastaDa(entrevista("12345678-aaaa", jovem, {})), "2026-09-04-12345678");
+});
+
+test("ZIP inclui aparelho.json quando recebe o diagnóstico do aparelho", async (t) => {
+  const anteriores = { indexedDB: globalThis.indexedDB, IDBRequest: globalThis.IDBRequest };
+  t.after(() => Object.assign(globalThis, anteriores));
+  globalThis.IDBRequest = class {};
+  globalThis.indexedDB = {
+    open: () => {
+      const pedido = {};
+      const db = {
+        objectStoreNames: { contains: () => true },
+        transaction: () => {
+          const tx = {
+            objectStore: () => ({
+              getAll: () => {
+                const leitura = new IDBRequest();
+                leitura.result = [];
+                queueMicrotask(() => {
+                  leitura.onsuccess();
+                  tx.oncomplete();
+                });
+                return leitura;
+              },
+            }),
+          };
+          return tx;
+        },
+      };
+      queueMicrotask(() => { pedido.result = db; pedido.onsuccess(); });
+      return pedido;
+    },
+  };
+  const aparelho = { versao: "abc123", entrevistas: { total: 0, concluidas: 0 } };
+  const { blob } = await montarZip(banco, { aparelho });
+  const zip = await JSZip.loadAsync(await blob.arrayBuffer());
+  assert.ok(zip.file("aparelho.json"), "aparelho.json ausente no ZIP");
+  assert.deepEqual(JSON.parse(await zip.file("aparelho.json").async("string")), aparelho);
+  const semDiagnostico = await montarZip(banco);
+  assert.equal((await JSZip.loadAsync(await semDiagnostico.blob.arrayBuffer())).file("aparelho.json"), null);
 });

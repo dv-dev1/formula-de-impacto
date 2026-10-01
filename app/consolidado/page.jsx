@@ -93,7 +93,7 @@ export default function Consolidado() {
               <p className="discreto" style={{ margin: "0 0 12px" }}>
                 {pergunta.secao} · perguntada a {alcance} de {recorte.length}
               </p>
-              <table>
+              <table className="contagem">
                 <tbody>
                   {contagem.map(({ opcao, total }) => (
                     <tr key={opcao}>

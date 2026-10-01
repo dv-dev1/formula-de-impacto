@@ -6,7 +6,7 @@ import Icone from "@/components/Icone";
 import Topo from "@/components/Topo";
 import banco from "@/data/perguntas.json";
 import { audiosDaEntrevista, obterEntrevista } from "@/lib/db.mjs";
-import { agruparPorSecao, montarFormulario, respondida } from "@/lib/montar-formulario.mjs";
+import { agruparPorSecao, montarFormulario, respondida, respostasForaDoBanco } from "@/lib/montar-formulario.mjs";
 import { audiosDaResposta } from "@/lib/exportar.mjs";
 import { descreverPerfil } from "@/lib/rotulos.mjs";
 
@@ -77,6 +77,7 @@ export default function Ficha() {
   }
 
   const perguntas = montarFormulario(banco, entrevista.perfil, entrevista.respostas);
+  const anteriores = respostasForaDoBanco(banco, entrevista.respostas);
   const gravados = audiosDaResposta(entrevista, audios);
 
   return (
@@ -118,6 +119,22 @@ export default function Ficha() {
             </div>
           </section>
         ))}
+        {anteriores.length > 0 && (
+          <section>
+            <h2 className="secao">Respostas de versão anterior do questionário</h2>
+            <div style={{ display: "grid", gap: 10, marginTop: 12 }}>
+              {anteriores.map(({ id, valor }) => (
+                <div key={id} className="cartao">
+                  <p className="discreto" style={{ margin: "0 0 6px" }}>{id}</p>
+                  <strong>
+                    {Array.isArray(valor) ? valor.join(", ") : valor && typeof valor === "object"
+                      ? valor.texto || valor.transcrito || "áudio gravado" : String(valor ?? "")}
+                  </strong>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
         </main>
       </div>
 

@@ -470,7 +470,13 @@ td {
   vertical-align: top;
 }
 
+table.contagem {
+  table-layout: fixed;
+  width: 100%;
+}
+
 td.n {
+  width: 7.5em;
   text-align: right;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
