@@ -9,12 +9,13 @@ Funciona sem sinal de celular: é onde a entrevista acontece.
 
 ```
 $ npm test
-# tests 53
-# pass 53
-# fail 0
+ℹ tests 77
+ℹ pass 77
+ℹ fail 0
 
 $ npm run validar
-40 verificações · 40 passaram · 0 falharam
+66 verificações · 65 passaram · 1 falharam
+  FALHA 13-limite: rajada de pedidos do mesmo IP recebe 429 — 400,400,400,…
 
 $ npm run test:ui
 9 aparelhos · 5 telas cada · telas em telas/
@@ -24,6 +25,9 @@ $ npm run comparar
 erro geral: 4.6% em 690 palavras
 ```
 
+O `13-limite` fica vermelho de propósito: o Pages não aceita o bloco `[[ratelimits]]`, e a
+rota de transcrição está sem limite por IP até existir sessão ou regra de WAF.
+
 ## Como funciona
 
 | Peça | Arquivo |
@@ -32,8 +36,11 @@ erro geral: 4.6% em 690 palavras
 | Montagem do formulário a partir do perfil | `lib/montar-formulario.mjs` |
 | Persistência local (IndexedDB) | `lib/db.mjs` |
 | Gravação de áudio e fila de transcrição | `components/GravadorAudio.jsx`, `lib/transcrever.mjs`, `components/TarefasDeFundo.jsx` |
-| Exportação em ZIP e consolidado | `lib/exportar.mjs` |
-| Funcionamento offline | `public/sw.js` |
+| Gravação em pedaços e recuperação | `lib/gravacao.mjs`, `lib/recuperar-gravacoes.mjs` |
+| Exportação em ZIP | `lib/exportar.mjs` |
+| Consolidado do território | `lib/territorio.mjs`, `app/consolidado/page.jsx` |
+| Erros e tela Aparelho | `lib/registro.mjs`, `app/aparelho/page.jsx` |
+| Funcionamento offline | `public/sw.js`, `scripts/carimbar-sw.mjs` |
 
 Uma pergunta pertence a um perfil por tag, não por formulário separado:
 
@@ -46,6 +53,31 @@ Uma pergunta pertence a um perfil por tag, não por formulário separado:
 ```
 
 São 22 perfis possíveis e cada um recebe de 23 a 41 perguntas — um teste prende esse intervalo.
+
+## Sem perder dado
+
+O gravador guarda a fala em pedaços de 10 segundos enquanto grava. Se o app fecha no meio, a
+próxima abertura junta os pedaços e anexa o áudio à pergunta; uma gravação ainda ativa em outra
+aba fica de fora, pelo Web Locks.
+
+O `npm run build` termina com `scripts/carimbar-sw.mjs`, que grava no `out/sw.js` a versão do
+build e a lista de todas as telas e arquivos do export. O tablet que atualizou abre qualquer tela
+sem sinal, mesmo as que ainda não visitou.
+
+A tela Aparelho mostra a versão do app, o espaço usado, as pendências e os últimos erros. Os
+mesmos dados vão no ZIP, em `aparelho.json`, para quem dá suporte.
+
+## Consolidado
+
+O coordenador importa os ZIPs dos tablets, que ficam guardados no aparelho até serem esquecidos.
+A tela mostra:
+
+- a média de cada escala por categoria de entrevistado, com o selo "visões diferentes" quando
+  os grupos se afastam 1,5 ponto ou mais;
+- as respostas abertas, sem nome e em ordem de texto;
+- a cobertura das 9 categorias por comunidade, com o zero em destaque.
+
+Os filtros são por perfil, comunidade, entrevistador e período. O recorte sai em CSV ou PDF.
 
 ## Transcrição
 
@@ -111,6 +143,20 @@ npm run servir       # serve out/ como o Cloudflare Pages serve
 npm run test:ui      # usabilidade em 9 aparelhos (precisa de npm run servir e Chrome com CDP)
 npm run validar      # bateria funcional contra produção (precisa de Chrome com microfone falso)
 ```
+
+O `validar` usa `BASE_URL` e `CDP_PORT`. Para rodar contra o build local com a Function de
+transcrição, suba `npx wrangler pages dev out --port 8788` e um Chrome assim:
+
+```bash
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new \
+  --remote-debugging-port=9223 --user-data-dir="$(mktemp -d)" --no-sandbox \
+  --use-fake-device-for-media-stream --use-fake-ui-for-media-stream \
+  --use-file-for-fake-audio-capture=fala.wav
+BASE_URL=http://localhost:8788 CDP_PORT=9223 npm run validar
+```
+
+Sem `--no-sandbox` o Chrome não consegue ler o `fala.wav` e grava silêncio. O `fala.wav` é
+fala em português, 48 kHz, com palavras como "para" e "gente", que o cenário de idioma procura.
 
 ## Publicação
 
