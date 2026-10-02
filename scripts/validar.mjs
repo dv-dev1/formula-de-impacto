@@ -11,6 +11,9 @@ const BASE = process.env.BASE_URL ?? "https://formula-de-impacto.pages.dev";
 const PORTA = Number(process.env.CDP_PORT ?? 9223);
 const SO = process.env.CENARIO;
 const SINCRONIZAR = process.env.SINCRONIZAR === "1";
+if (SINCRONIZAR && new URL(BASE).origin === "https://formula-de-impacto.pages.dev") {
+  throw new Error("Bateria com envio não pode rodar contra produção. Use a prévia ou o local.");
+}
 
 const { cdp, js, fechar } = await conectar(PORTA);
 const { clicar, preencher, passarPelaTranca, limparAparelho } = comandos(js);
@@ -90,6 +93,17 @@ if (!SINCRONIZAR) {
   await cdp("Network.setBlockedURLs", { urls: ["*/api/sincronizar*", "*/api/painel*"] });
 }
 await cdp("Emulation.setDeviceMetricsOverride", { width: 800, height: 1280, deviceScaleFactor: 1, mobile: true });
+if (!SINCRONIZAR) {
+  await irPara("/");
+  const bloqueou = await js(`
+    try { await fetch("/api/painel"); return false; }
+    catch { return true; }
+  `);
+  if (!bloqueou) {
+    fechar();
+    throw new Error("O bloqueio das APIs não pegou; bateria abortada para proteger o banco.");
+  }
+}
 
 // ---------------------------------------------------------------------------
 
@@ -746,7 +760,7 @@ await cenario("23-sincronizar", async () => {
         const conta = JSON.parse(localStorage.getItem("acesso-formula-impacto"));
         const resposta = await fetch("/api/painel", { headers: { authorization: "Bearer " + conta.id + "." + conta.segredo } });
         if (!resposta.ok) return false;
-        return (await resposta.json()).entrevistas.some((e) => e.id === ${JSON.stringify(id)});
+        return (await resposta.json()).entrevistas.some((e) => e.entrevistadorId === conta.id && e.id === ${JSON.stringify(id)});
       } catch { return false; }
     `), 20);
     checar("23-sincronizar: entrevista offline chega ao banco quando a rede volta", chegou);
@@ -779,7 +793,7 @@ await cenario("24-isolamento", async () => {
   const a = conta("Validação A");
   const b = conta("Validação B");
   const a1 = crypto.randomUUID();
-  const b1 = crypto.randomUUID();
+  const b1 = a1;
   const headers = (c) => ({ authorization: `Bearer ${c.id}.${c.segredo}`, "content-type": "application/json" });
   const postar = (c, id) => fetch(`${BASE}/api/sincronizar`, {
     method: "POST", headers: headers(c),
@@ -789,7 +803,10 @@ await cenario("24-isolamento", async () => {
   checar("24-isolamento: B envia sua entrevista", (await postar(b, b1)).ok);
   const resposta = await fetch(`${BASE}/api/painel`, { headers: headers(a) });
   const dados = await resposta.json();
-  checar("24-isolamento: A lê a1 e não lê b1", resposta.ok && dados.entrevistas.some((e) => e.id === a1) && !dados.entrevistas.some((e) => e.id === b1));
+  checar("24-isolamento: A lê a1 e não lê b1", resposta.ok && dados.entrevistas.some((e) => e.entrevistadorId === a.id && e.id === a1) && !dados.entrevistas.some((e) => e.entrevistadorId === b.id && e.id === b1));
+  const respostaB = await fetch(`${BASE}/api/painel`, { headers: headers(b) });
+  const dadosB = await respostaB.json();
+  checar("24-isolamento: B lê b1 com o mesmo id de a1", respostaB.ok && dadosB.entrevistas.some((e) => e.entrevistadorId === b.id && e.id === b1) && !dadosB.entrevistas.some((e) => e.entrevistadorId === a.id && e.id === a1));
   const errado = await fetch(`${BASE}/api/painel`, { headers: headers({ ...a, segredo: b.segredo }) });
   checar("24-isolamento: segredo errado de A recebe 401", errado.status === 401);
 });

@@ -44,8 +44,8 @@ export async function onRequestPost({ request, env }) {
     const { enviadaEm, ...dados } = e;
     return env.DB.prepare(`
       INSERT INTO entrevistas (id, entrevistador_id, dados, atualizada_em, recebida_em) VALUES (?1, ?2, ?3, ?4, ?5)
-      ON CONFLICT (id) DO UPDATE SET dados = excluded.dados, atualizada_em = excluded.atualizada_em, recebida_em = excluded.recebida_em
-      WHERE entrevistas.entrevistador_id = excluded.entrevistador_id AND excluded.atualizada_em > entrevistas.atualizada_em
+      ON CONFLICT (entrevistador_id, id) DO UPDATE SET dados = excluded.dados, atualizada_em = excluded.atualizada_em, recebida_em = excluded.recebida_em
+      WHERE excluded.atualizada_em > entrevistas.atualizada_em
     `).bind(e.id, id, JSON.stringify({ ...dados, entrevistadorId: id }), versaoDe(e), agora);
   });
   for (const apagada of corpo.apagadas.filter((valor) => typeof valor === "string")) {

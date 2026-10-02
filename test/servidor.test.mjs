@@ -87,12 +87,26 @@ test("GET de A traz só suas entrevistas e seu entrevistador", async (t) => {
 test("B não sobrescreve nem apaga a entrevista de A mesmo com versão mais nova", async (t) => {
   const env = bancoFalso(t);
   await postar(env, A, [entrevista("a1")]);
-  const r = await postar(env, B, [entrevista("a1", { atualizadaEm: "2026-10-02T12:00:00Z", respostas: { nome: "Intrusa" } })], ["a1"]);
+  const r = await postar(env, B, [entrevista("a1", { atualizadaEm: "2026-10-02T12:00:00Z", respostas: { nome: "De B" } })]);
   assert.deepEqual(await r.json(), { ids: ["a1"] });
   const dados = (await (await ler(env)).json()).entrevistas;
   assert.equal(dados.length, 1);
   assert.equal(dados[0].respostas.nome, "a1");
   assert.equal(dados[0].entrevistadorId, A.id);
+  const deB = (await (await ler(env, B)).json()).entrevistas;
+  assert.equal(deB.length, 1);
+  assert.equal(deB[0].respostas.nome, "De B");
+  env.sqlite.prepare("UPDATE entrevistadores SET papel='coordenador' WHERE id=?").run(A.id);
+  const equipe = (await (await ler(env)).json()).entrevistas;
+  assert.deepEqual(equipe.map((e) => [e.entrevistadorId, e.id, e.respostas.nome]).sort(),
+    [[A.id, "a1", "a1"], [B.id, "a1", "De B"]]);
+  await postar(env, B, [], ["a1"]);
+  assert.deepEqual((await (await ler(env, B)).json()).entrevistas, []);
+  const restantes = (await (await ler(env)).json()).entrevistas;
+  assert.deepEqual(restantes.map((e) => [e.entrevistadorId, e.id, e.respostas.nome]), [[A.id, "a1", "a1"]]);
+  const apagadaEm = (conta) => env.sqlite.prepare("SELECT apagada_em FROM entrevistas WHERE entrevistador_id=? AND id=?").get(conta.id, "a1").apagada_em;
+  assert.equal(apagadaEm(A), null);
+  assert.ok(!Number.isNaN(Date.parse(apagadaEm(B))));
 });
 
 test("versão mais velha ou igual não sobrescreve, versão nova atualiza", async (t) => {
@@ -118,14 +132,14 @@ test("apagadas marca apagada_em e some do GET mesmo após reenvio", async (t) =>
 
 test("coordenador lê todas, entrevistadores por nome e dono da coluna", async (t) => {
   const env = bancoFalso(t);
-  await postar(env, B, [entrevista("b1")]);
+  await postar(env, B, [entrevista("a1")]);
   await postar(env, A, [entrevista("a1")]);
   env.sqlite.prepare("UPDATE entrevistadores SET papel='coordenador' WHERE id=?").run(A.id);
-  env.sqlite.prepare("UPDATE entrevistas SET dados=? WHERE id='b1'").run(JSON.stringify(entrevista("b1", { entrevistadorId: A.id })));
+  env.sqlite.prepare("UPDATE entrevistas SET dados=? WHERE entrevistador_id=? AND id=?").run(JSON.stringify(entrevista("a1", { entrevistadorId: A.id })), B.id, "a1");
   const dados = await (await ler(env)).json();
   assert.equal(dados.papel, "coordenador");
   assert.deepEqual(dados.entrevistadores, [{ id: A.id, nome: A.nome }, { id: B.id, nome: B.nome }]);
-  assert.deepEqual(dados.entrevistas.map((e) => [e.id, e.entrevistadorId]).sort(), [["a1", A.id], ["b1", B.id]]);
+  assert.deepEqual(dados.entrevistas.map((e) => [e.entrevistadorId, e.id]).sort(), [[A.id, "a1"], [B.id, "a1"]]);
 });
 
 test("corpo acima de 100 entrevistas ou 500 apagadas devolve 413 antes do cadastro", async (t) => {

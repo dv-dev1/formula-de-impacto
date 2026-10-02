@@ -166,6 +166,7 @@ mkdirSync(SAIDA, { recursive: true });
 await cdp("Page.enable");
 await cdp("Runtime.enable");
 await cdp("Network.enable");
+await cdp("Network.setBlockedURLs", { urls: ["*/api/sincronizar*", "*/api/painel*"] });
 // A bateria mede o build atual, não o que o service worker guardou de uma rodada anterior.
 await cdp("Network.setBypassServiceWorker", { bypass: true });
 

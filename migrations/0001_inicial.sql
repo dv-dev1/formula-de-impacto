@@ -10,12 +10,11 @@ CREATE TABLE entrevistadores (
 
 -- A entrevista sobe inteira, como JSON: o painel conta com as mesmas funções do app.
 CREATE TABLE entrevistas (
-  id TEXT PRIMARY KEY,
+  id TEXT NOT NULL,
   entrevistador_id TEXT NOT NULL REFERENCES entrevistadores (id),
   dados TEXT NOT NULL,
   atualizada_em TEXT NOT NULL,
   recebida_em TEXT NOT NULL,
-  apagada_em TEXT
+  apagada_em TEXT,
+  PRIMARY KEY (entrevistador_id, id)
 );
-
-CREATE INDEX entrevistas_por_entrevistador ON entrevistas (entrevistador_id);

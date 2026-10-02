@@ -41,20 +41,20 @@ test("mais ouvidos inclui empate na ordem das categorias e fica vazio sem entrev
   assert.deepEqual(resumoDoPainel(banco, []).maisOuvidos, []);
 });
 
-test("maioria ignora alcance menor que 3 e zero, e desempata pela ordem do banco", () => {
+test("maioria ignora alcance menor que 3 e zero, e une empate na ordem do banco", () => {
   const r = resumoDoPainel(banco, [
     entrevista("a", "agricultor", { escala: "Boa", multipla: ["Estrada"], restrita: "Sim" }),
     entrevista("b", "agricultor", { escala: "Ruim", multipla: ["Água"], restrita: "Sim" }),
     entrevista("c", "ater", { escala: "Ruim", multipla: ["Luz"] }),
   ]);
   assert.deepEqual(r.maioria.map((l) => [l.pergunta.id, l.opcao, l.total, l.alcance, l.pct]),
-    [["escala", "Ruim", 2, 3, 67], ["multipla", "Água", 1, 3, 33]]);
+    [["escala", "Ruim", 2, 3, 67], ["multipla", "Água / Estrada / Luz", 1, 3, 33]]);
 });
 
 test("maioria ordena percentual e depois alcance, com empate da escala na ordem do banco", () => {
   const lista = ["Boa", "Boa", "Ruim", "Ruim"].map((escala, i) => entrevista(String(i), i === 3 ? "ater" : "agricultor", { escala, restrita: "Sim" }));
   const r = resumoDoPainel(banco, lista);
-  assert.deepEqual(r.maioria.map((l) => [l.pergunta.id, l.opcao, l.pct]), [["restrita", "Sim", 100], ["escala", "Boa", 50]]);
+  assert.deepEqual(r.maioria.map((l) => [l.pergunta.id, l.opcao, l.pct]), [["restrita", "Sim", 100], ["escala", "Boa / Ruim", 50]]);
   const igual = { perguntas: [
     { ...banco.perguntas[2], id: "menor" },
     { ...banco.perguntas[0], id: "maior" },

@@ -47,7 +47,7 @@ function Resumo({ resumo }) {
         ))}
       </div>
       <div className="cartao">
-        <h2 className="secao" style={{ marginTop: 0 }}>Grupo que você mais entrevistou</h2>
+        <h2 className="secao" style={{ marginTop: 0 }}>Grupo mais entrevistado</h2>
         <p>{resumo.maisOuvidos.map((c) => `${c.rotulo} — ${c.total} de ${resumo.total} (${c.pct}%)`).join("; ") || "—"}</p>
       </div>
       <Barras titulo="Por categoria" linhas={resumo.porCategoria} />
@@ -68,7 +68,7 @@ function Resumo({ resumo }) {
         {!resumo.maioria.length && <p className="discreto">Ainda não há respostas com alcance de pelo menos 3 entrevistas.</p>}
       </div>
       <div className="cartao">
-        <h2 className="secao" style={{ marginTop: 0 }}>Ainda não ouviu</h2>
+        <h2 className="secao" style={{ marginTop: 0 }}>Grupos ainda não ouvidos</h2>
         <p>{resumo.faltamOuvir.join("; ") || "Todas as categorias já foram ouvidas."}</p>
       </div>
     </>
