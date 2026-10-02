@@ -24,19 +24,27 @@ function CampoOutro({ pergunta, valor, texto, aoResponder }) {
   );
 }
 
-export default function Resposta({ pergunta, valor, textoOutro, entrevistaId, aoResponder }) {
+export default function Resposta({ pergunta, valor, textoOutro, entrevistaId, sugestoes, aoResponder }) {
   const trocar = (novo) => aoResponder(pergunta.id, novo);
   const outro = <CampoOutro pergunta={pergunta} valor={valor} texto={textoOutro} aoResponder={aoResponder} />;
 
   if (pergunta.tipo === "texto" || pergunta.tipo === "numero") {
     return (
-      <input
-        type={pergunta.tipo === "numero" ? "number" : "text"}
-        inputMode={pergunta.tipo === "numero" ? "numeric" : "text"}
-        value={valor ?? ""}
-        onChange={(e) => trocar(e.target.value)}
-        aria-label={pergunta.texto}
-      />
+      <>
+        <input
+          type={pergunta.tipo === "numero" ? "number" : "text"}
+          inputMode={pergunta.tipo === "numero" ? "numeric" : "text"}
+          value={valor ?? ""}
+          onChange={(e) => trocar(e.target.value)}
+          aria-label={pergunta.texto}
+          list={pergunta.tipo === "texto" && sugestoes ? `sugestoes-${pergunta.id}` : undefined}
+        />
+        {pergunta.tipo === "texto" && sugestoes && (
+          <datalist id={`sugestoes-${pergunta.id}`}>
+            {sugestoes.map((valor) => <option key={valor} value={valor} />)}
+          </datalist>
+        )}
+      </>
     );
   }
 

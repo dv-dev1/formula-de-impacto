@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { novoId, obterAudio, salvarAudio } from "@/lib/db.mjs";
+import { apagarPedacos, novoId, obterAudio, salvarAudio, salvarPedaco } from "@/lib/db.mjs";
 import { registrarErro } from "@/lib/registro.mjs";
 import { FORMATOS } from "@/lib/formatos-audio.mjs";
 import { desenfileirar, enfileirar, juntarTranscricao, semTranscricaoAntiga, transcrever } from "@/lib/transcrever.mjs";
@@ -15,6 +15,11 @@ const relogio = (segundos) =>
   `${String(Math.floor(segundos / 60)).padStart(2, "0")}:${String(segundos % 60).padStart(2, "0")}`;
 
 export default function GravadorAudio({ entrevistaId, perguntaId, valor, aoGravar }) {
+  const [nivel, setNivel] = useState(null);
+  const [silencio, setSilencio] = useState(false);
+  const recursosRef = useRef(null);
+  const vivoRef = useRef(true);
+  const iniciandoRef = useRef(false);
   const [gravando, setGravando] = useState(false);
   const [segundos, setSegundos] = useState(0);
   const [erro, setErro] = useState("");
@@ -45,6 +50,80 @@ export default function GravadorAudio({ entrevistaId, perguntaId, valor, aoGrava
     const timer = setInterval(() => setSegundos((s) => s + 1), 1000);
     return () => clearInterval(timer);
   }, [gravando]);
+
+  function liberarRecursos() {
+    const recursos = recursosRef.current;
+    if (!recursos) return;
+    recursos.ativo = false;
+    cancelAnimationFrame(recursos.quadro);
+    recursos.contexto?.close().catch(() => {});
+    recursos.trava?.release().catch(() => {});
+    recursos.soltarLock?.();
+    recursos.stream.getTracks().forEach((faixa) => faixa.stop());
+    recursosRef.current = null;
+  }
+
+  useEffect(() => {
+    vivoRef.current = true;
+    const aoVisivel = () => {
+      const recursos = recursosRef.current;
+      if (document.visibilityState === "visible" && recursos?.ativo) manterTela(recursos);
+    };
+    document.addEventListener("visibilitychange", aoVisivel);
+    return () => {
+      vivoRef.current = false;
+      document.removeEventListener("visibilitychange", aoVisivel);
+      if (gravadorRef.current?.state === "recording") gravadorRef.current.stop();
+      liberarRecursos();
+    };
+  }, []);
+
+  function acompanharMicrofone(recursos) {
+    const Contexto = window.AudioContext ?? window.webkitAudioContext;
+    if (!Contexto) return;
+    try {
+      const contexto = new Contexto();
+      recursos.contexto = contexto;
+      const analisador = contexto.createAnalyser();
+      contexto.createMediaStreamSource(recursos.stream).connect(analisador);
+      const dados = new Float32Array(analisador.fftSize);
+      let inicio = Date.now();
+      let pico = 0;
+      let conferiu = false;
+      contexto.resume().catch(() => {});
+      const medir = () => {
+        if (!recursos.ativo) return;
+        if (contexto.state !== "running") {
+          inicio = Date.now();
+          recursos.quadro = requestAnimationFrame(medir);
+          return;
+        }
+        analisador.getFloatTimeDomainData(dados);
+        const rms = Math.sqrt(dados.reduce((soma, valor) => soma + valor * valor, 0) / dados.length);
+        if (!conferiu) {
+          pico = Math.max(pico, rms);
+          if (Date.now() - inicio >= 5000) {
+            conferiu = true;
+            setSilencio(pico < 0.01);
+          }
+        }
+        setNivel(Math.min(100, rms * 500));
+        recursos.quadro = requestAnimationFrame(medir);
+      };
+      medir();
+    } catch {
+      recursos.contexto?.close().catch(() => {});
+      recursos.contexto = null;
+    }
+  }
+
+  async function manterTela(recursos) {
+    try {
+      const trava = await navigator.wakeLock?.request("screen");
+      if (!recursos.ativo) await trava?.release();
+      else recursos.trava = trava;
+    } catch {}
+  }
 
   async function transcreverAgora(audioId) {
     const audio = await obterAudio(audioId);
@@ -90,15 +169,40 @@ export default function GravadorAudio({ entrevistaId, perguntaId, valor, aoGrava
   }, [valor?.audioId]);
 
   async function iniciar() {
+    if (iniciandoRef.current || gravadorRef.current?.state === "recording") return;
+    iniciandoRef.current = true;
     setErro("");
+    setNivel(null);
+    setSilencio(false);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (!vivoRef.current) {
+        stream.getTracks().forEach((faixa) => faixa.stop());
+        return;
+      }
+      const recursos = { stream, ativo: true };
+      recursosRef.current = recursos;
       const formato = formatoSuportado();
       const gravador = new MediaRecorder(stream, formato.mime ? { mimeType: formato.mime } : undefined);
       const pedacos = [];
-      gravador.ondataavailable = (evento) => evento.data.size && pedacos.push(evento.data);
+      const gravacaoId = novoId();
+      navigator.locks?.request(`gravacao-${gravacaoId}`, () => new Promise((soltar) => (recursos.soltarLock = soltar))).catch(() => {});
+      const gravacoes = [];
+      gravador.ondataavailable = (evento) => {
+        if (!evento.data.size) return;
+        const indice = pedacos.length;
+        pedacos.push(evento.data);
+        gravacoes.push(salvarPedaco({
+          id: `${gravacaoId}-${indice}`, gravacaoId, entrevistaId, perguntaId, indice,
+          blob: evento.data, mimeType: gravador.mimeType, extensao: formato.extensao,
+          criadoEm: new Date().toISOString(),
+        }).catch((erro) => registrarErro("gravador-pedaco", erro)));
+      };
       gravador.onstop = async () => {
-        stream.getTracks().forEach((faixa) => faixa.stop());
+        liberarRecursos();
+        if (!vivoRef.current) return;
+        setNivel(null);
+        setSilencio(false);
         const duracao = Math.round((Date.now() - inicioRef.current) / 1000);
         const id = novoId();
         try {
@@ -115,21 +219,37 @@ export default function GravadorAudio({ entrevistaId, perguntaId, valor, aoGrava
           setGravando(false);
           return;
         }
+        // O último ondataavailable ainda pode estar escrevendo quando onstop chega.
+        await Promise.all(gravacoes);
+        if (!vivoRef.current) return;
         aoGravar({ ...semTranscricaoAntiga(valorRef.current), audioId: id, duracao });
         setGravando(false);
         transcreverAgora(id);
+        try {
+          await apagarPedacos(gravacaoId);
+        } catch (erro) {
+          registrarErro("gravador-pedaco", erro);
+        }
       };
       gravadorRef.current = gravador;
       setSegundos(0);
-      gravador.start();
       inicioRef.current = Date.now();
+      gravador.start(10000);
+      acompanharMicrofone(recursos);
+      manterTela(recursos);
       setGravando(true);
     } catch {
-      setErro("Não consegui acessar o microfone. Autorize o microfone para este site.");
+      liberarRecursos();
+      if (vivoRef.current) setErro("Não consegui acessar o microfone. Autorize o microfone para este site.");
+    } finally {
+      iniciandoRef.current = false;
     }
   }
 
-  const parar = () => gravadorRef.current?.stop();
+  const parar = () => {
+    if (gravadorRef.current?.state !== "recording") return;
+    gravadorRef.current.stop();
+  };
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
@@ -142,6 +262,13 @@ export default function GravadorAudio({ entrevistaId, perguntaId, valor, aoGrava
         <Icone nome={gravando ? "parar" : "microfone"} />
         {gravando ? `Parar — ${relogio(segundos)}` : valor?.audioId ? "Gravar de novo" : "Gravar resposta"}
       </button>
+
+      {gravando && nivel !== null && (
+        <div className="trilho" role="meter" aria-label="Nível do microfone" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(nivel)}>
+          <span style={{ width: `${nivel}%` }} />
+        </div>
+      )}
+      {gravando && silencio && <p className="aviso">Não estou ouvindo nada. Confira o microfone.</p>}
 
       {estado === "transcrevendo" && (
         <div className="processando">
@@ -163,7 +290,7 @@ export default function GravadorAudio({ entrevistaId, perguntaId, valor, aoGrava
 
       {erro && <p className="aviso">{erro}</p>}
 
-      {url && !gravando && <audio src={url} controls style={{ width: "100%" }} />}
+      {valor?.audioId && !gravando && <audio src={url || undefined} controls style={{ width: "100%" }} />}
     </div>
   );
 }

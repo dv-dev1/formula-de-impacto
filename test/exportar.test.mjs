@@ -4,7 +4,7 @@ import test from "node:test";
 
 import JSZip from "jszip";
 
-import { LEIAME, audiosDaResposta, consolidar, juntarEntrevistas, lerExportacao, montarCsv, montarZip, pastaDa } from "../lib/exportar.mjs";
+import { LEIAME, audiosDaResposta, consolidar, duracaoMinutos, entrevistasDesde, juntarEntrevistas, lerExportacao, montarCsv, montarZip, pastaDa } from "../lib/exportar.mjs";
 import { EXTENSOES } from "../lib/formatos-audio.mjs";
 
 const banco = JSON.parse(readFileSync(new URL("../data/perguntas.json", import.meta.url)));
@@ -54,7 +54,7 @@ test("CSV tem uma coluna por pergunta do banco, para todo perfil caber na mesma 
   const [cabecalho] = montarCsv(banco, []).split("\r\n");
   const colunas = cabecalho.split('","').length;
   const comOutro = banco.perguntas.filter((p) => p.outro).length;
-  assert.equal(colunas, banco.perguntas.length + comOutro + 7);
+  assert.equal(colunas, banco.perguntas.length + comOutro + 9);
 });
 
 test("CSV põe o texto de Outra na coluna logo depois da pergunta dona", () => {
@@ -133,6 +133,17 @@ test("juntar entrevistas de outro aparelho não duplica por id e a local vence",
   assert.equal(juntas[0].respostas.nome, "local");
 });
 
+test("juntarEntrevistas mantém a cópia mais recente e a primeira no empate", () => {
+  const local = entrevista("a", jovem, { nome: "local" });
+  const nova = { ...local, respostas: { nome: "corrigido" }, atualizadaEm: "2026-09-05T12:00:00.000Z" };
+  const empate = { ...nova, respostas: { nome: "empate" } };
+  assert.deepEqual(juntarEntrevistas([local], [nova, local, empate]), [nova]);
+  assert.deepEqual(juntarEntrevistas([nova], [local, empate]), [nova]);
+  assert.deepEqual(juntarEntrevistas([], [local, nova, empate]), [nova]);
+  const iniciadaDepois = { ...local, iniciadaEm: "2026-09-06T12:00:00.000Z" };
+  assert.deepEqual(juntarEntrevistas([nova], [iniciadaDepois]), [iniciadaDepois]);
+});
+
 test("importar ZIP lê entrevistas.json e descarta item malformado", async () => {
   const zip = new JSZip();
   zip.file(
@@ -195,4 +206,34 @@ test("ZIP inclui aparelho.json quando recebe o diagnóstico do aparelho", async 
   assert.deepEqual(JSON.parse(await zip.file("aparelho.json").async("string")), aparelho);
   const semDiagnostico = await montarZip(banco);
   assert.equal((await JSZip.loadAsync(await semDiagnostico.blob.arrayBuffer())).file("aparelho.json"), null);
+});
+
+test("entrevistasDesde inclui novas e alteradas, exclui anteriores e a data igual", () => {
+  const desde = "2026-09-05T12:00:00.000Z";
+  const lista = [
+    entrevista("antiga", jovem, {}),
+    { ...entrevista("igual", jovem, {}), atualizadaEm: desde },
+    { ...entrevista("alterada", jovem, {}), atualizadaEm: "2026-09-06T12:00:00.000Z" },
+    { ...entrevista("nova", jovem, {}), iniciadaEm: "2026-09-07T12:00:00.000Z" },
+  ];
+  assert.deepEqual(entrevistasDesde(lista, desde).map((e) => e.id), ["alterada", "nova"]);
+  assert.deepEqual(entrevistasDesde(lista), lista);
+  assert.deepEqual(entrevistasDesde([], desde), []);
+});
+
+test("duracaoMinutos conta minutos inteiros e deixa entrevista aberta sem duração", () => {
+  const aberta = entrevista("a", jovem, {});
+  assert.equal(duracaoMinutos({ ...aberta, concluidaEm: "2026-09-04T12:07:59.000Z" }), 7);
+  assert.equal(duracaoMinutos({ ...aberta, concluidaEm: "2026-09-04T12:00:30.000Z" }), 0);
+  assert.equal(duracaoMinutos({ ...aberta, concluidaEm: "2026-09-05T12:00:00.000Z" }), 1440);
+  assert.equal(duracaoMinutos(aberta), null);
+});
+
+test("CSV põe conclusão e duração depois de entrevistador, com vazio para entrevista aberta", () => {
+  const concluida = { ...entrevista("a", jovem, {}), entrevistador: "Ana", concluidaEm: "2026-09-04T12:07:59.000Z" };
+  const linhas = montarCsv(banco, [concluida, entrevista("b", jovem, {})]).split("\r\n");
+  const colunas = linhas.map((linha) => linha.slice(1, -1).split('","'));
+  assert.deepEqual(colunas[0].slice(6, 9), ["entrevistador", "concluida", "duracao_min"]);
+  assert.deepEqual(colunas[1].slice(6, 9), ["Ana", "sim", "7"]);
+  assert.deepEqual(colunas[2].slice(6, 9), ["", "não", ""]);
 });

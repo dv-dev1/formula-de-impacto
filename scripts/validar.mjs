@@ -358,7 +358,7 @@ await cenario("8-banco-resiliente", async () => {
       setTimeout(() => res("timeout"), 4000);
     });
   `);
-  checar("8-banco-resiliente: store perdido é recriado", recriou === "audios,entrevistas", String(recriou));
+  checar("8-banco-resiliente: store perdido é recriado", recriou === "audios,entrevistas,pedacos", String(recriou));
 
   const depois = (await respostasGravadas())?.length ?? 0;
   checar("8-banco-resiliente: entrevistas já registradas não são perdidas", depois >= antes, `${antes} antes, ${depois} depois`);
@@ -553,6 +553,83 @@ await cenario("15-gravador-falha", async () => {
       return true;
     `);
   }
+});
+
+await cenario("16-pedacos", async () => {
+  await rede(false);
+  await abrirEntrevista(["Agricultor(a) familiar", "Adulto", "Homem"]);
+  await acharGravador();
+  const perguntaId = await js(`
+    const botao = [...document.querySelectorAll("button")].find((b) => /Gravar resposta/.test(b.textContent));
+    const id = botao.closest(".cartao").id.slice(2);
+    botao.click();
+    return id;
+  `);
+  const comecou = await ate(async () => (await textoDaTela()).includes("Parar —"), 8);
+  if (!comecou) throw new Error("gravação não começou");
+  await espera(12000);
+  const contarPedacos = () => js(`
+    return new Promise((res, rejeitar) => {
+      const abrir = indexedDB.open("entrevista-campo");
+      abrir.onsuccess = () => {
+        const db = abrir.result;
+        const tx = db.transaction("pedacos", "readonly");
+        const pedido = tx.objectStore("pedacos").count();
+        pedido.onsuccess = () => res(pedido.result);
+        tx.oncomplete = () => db.close();
+        tx.onerror = () => rejeitar(tx.error);
+      };
+      abrir.onerror = () => rejeitar(abrir.error);
+    });
+  `);
+  checar("16-pedacos: gravação salva pelo menos um pedaço antes de parar", (await contarPedacos()) > 0);
+  const id = await js(`return new URLSearchParams(location.search).get("id");`);
+  await cdp("Page.reload", { ignoreCache: true });
+  const recuperou = await ate(async () => {
+    const entrevista = (await respostasGravadas())?.find((e) => e.id === id);
+    return Boolean(entrevista?.respostas[perguntaId]?.audioId);
+  }, 20);
+  checar("16-pedacos: recarregar durante a gravação recupera áudio na pergunta", recuperou);
+  const limpou = await ate(async () => (await contarPedacos()) === 0, 10);
+  checar("16-pedacos: recuperação esvazia o store de pedaços", limpou);
+  const anexado = await ate(() => js(`return Boolean(document.querySelector("#p-${perguntaId} audio"));`), 10);
+  checar("16-pedacos: tela aberta recebe o áudio recuperado", anexado);
+});
+
+await cenario("17-indice", async () => {
+  await rede(false);
+  await abrirEntrevista(["Agricultor(a) familiar", "Adulto", "Mulher"]);
+  for (const largura of [390, 820]) {
+    await cdp("Emulation.setDeviceMetricsOverride", { width: largura, height: 1280, deviceScaleFactor: 1, mobile: true });
+    await js(`document.querySelector(".indice a:last-child").click(); return true;`);
+    await espera(300);
+    const posicao = await js(`
+      const indice = document.querySelector(".indice");
+      const chip = indice.querySelector("a:last-child");
+      const secao = document.getElementById(chip.hash.slice(1));
+      const topo = secao.getBoundingClientRect().top;
+      const base = indice.getBoundingClientRect().bottom;
+      return { topo, base, cabe: document.documentElement.scrollWidth <= innerWidth };
+    `);
+    checar(`17-indice: chip leva seção para perto do topo em ${largura} px`, posicao.topo >= posicao.base && posicao.topo - posicao.base < 45, JSON.stringify(posicao));
+    checar(`17-indice: índice cabe sem alargar a página em ${largura} px`, posicao.cabe);
+  }
+  await preencher("Nome do entrevistado", "Entrevista retomada");
+  await preencher("Comunidade", "Comunidade do teste");
+  await espera(1200);
+  const primeiraPendente = await js(`
+    return [...document.querySelectorAll(".cartao[id]")].find((c) => !c.querySelector(".selo-feito"))?.id;
+  `);
+  const id = await js(`return new URLSearchParams(location.search).get("id");`);
+  await irPara("/");
+  await irPara(`/entrevista/?id=${id}`);
+  const posicao = await js(`
+    const cartao = document.getElementById(${JSON.stringify(primeiraPendente)});
+    const topo = cartao.getBoundingClientRect().top;
+    const base = document.querySelector(".indice").getBoundingClientRect().bottom;
+    return { topo, base };
+  `);
+  checar("17-indice: reabrir entrevista rola até a primeira pendente", posicao.topo >= posicao.base && posicao.topo - posicao.base < 45, JSON.stringify(posicao));
 });
 
 await cenario("19-csp", async () => {

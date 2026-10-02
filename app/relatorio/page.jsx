@@ -1,19 +1,20 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import Icone from "@/components/Icone";
 import Topo from "@/components/Topo";
 import banco from "@/data/perguntas.json";
 import { audiosDaEntrevista, obterEntrevista } from "@/lib/db.mjs";
-import { agruparPorSecao, montarFormulario, respondida, respostasForaDoBanco } from "@/lib/montar-formulario.mjs";
-import { audiosDaResposta } from "@/lib/exportar.mjs";
+import { agruparPorSecao, montarFormulario, progresso, respondida, respostasForaDoBanco } from "@/lib/montar-formulario.mjs";
+import { audiosDaResposta, duracaoMinutos } from "@/lib/exportar.mjs";
 import { descreverPerfil } from "@/lib/rotulos.mjs";
 
 const relogio = (s = 0) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
 function ValorResposta({ pergunta, valor, audios }) {
-  if (!respondida(pergunta, valor)) return <em className="discreto">não respondida</em>;
+  if (!respondida(pergunta, valor)) return <em className="sem-resposta">Não respondida</em>;
 
   if (Array.isArray(valor)) {
     return (
@@ -77,6 +78,8 @@ export default function Ficha() {
   }
 
   const perguntas = montarFormulario(banco, entrevista.perfil, entrevista.respostas);
+  const { feitas, total } = progresso(perguntas, entrevista.respostas);
+  const duracao = duracaoMinutos(entrevista);
   const anteriores = respostasForaDoBanco(banco, entrevista.respostas);
   const gravados = audiosDaResposta(entrevista, audios);
 
@@ -91,9 +94,16 @@ export default function Ficha() {
           <p className="discreto" style={{ margin: "6px 0 0" }}>
             {entrevista.respostas.comunidade ? `${entrevista.respostas.comunidade} · ` : ""}
             {new Date(entrevista.iniciadaEm).toLocaleString("pt-BR")}
+            {duracao !== null && ` · duração ${duracao} min`}
             {gravados.length > 0 && ` · ${gravados.length} áudio(s)`}
           </p>
         </div>
+
+        {feitas < total && (
+          <p className="aviso">
+            {total - feitas} sem resposta · <Link href={`/entrevista/?id=${entrevista.id}`}>Completar</Link>
+          </p>
+        )}
 
         {agruparPorSecao(perguntas).map((secao) => (
           <section key={secao.nome}>

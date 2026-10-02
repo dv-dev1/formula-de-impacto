@@ -9,7 +9,7 @@ import Topo from "@/components/Topo";
 import { CHAVE } from "@/components/Tranca";
 import banco from "@/data/perguntas.json";
 import { apagarEntrevista, listarEntrevistas, novoId, salvarEntrevista } from "@/lib/db.mjs";
-import { baixar, montarZip } from "@/lib/exportar.mjs";
+import { baixar, entrevistasDesde, montarZip } from "@/lib/exportar.mjs";
 import { montarFormulario, progresso } from "@/lib/montar-formulario.mjs";
 import { ULTIMA_EXPORTACAO, infoDoAparelho, registrarErro } from "@/lib/registro.mjs";
 import { CARGOS, CATEGORIAS, FAIXAS, GENEROS, descreverPerfil } from "@/lib/rotulos.mjs";
@@ -50,6 +50,7 @@ export default function Inicio() {
   const [perfil, setPerfil] = useState({});
   const [entrevistas, setEntrevistas] = useState([]);
   const [exportando, setExportando] = useState(false);
+  const [arquivoZip, setArquivoZip] = useState(null);
   const [paraApagar, setParaApagar] = useState(null);
   const [falha, setFalha] = useState("");
   const [ultimaExportacao, setUltimaExportacao] = useState(null);
@@ -63,11 +64,15 @@ export default function Inicio() {
     };
     atualizar();
     window.addEventListener("transcrito", atualizar);
+    window.addEventListener("recuperado", atualizar);
     setUltimaExportacao(lerLocal(ULTIMA_EXPORTACAO));
     // ponytail: persisted() no Safari iOS a confirmar; o aviso some se ele sempre disser false sem PWA.
     navigator.storage?.persisted?.().then(setPersistido, () => {});
     for (const rota of ["/entrevista/", "/relatorio/", "/consolidado/", "/aparelho/"]) router.prefetch(rota);
-    return () => window.removeEventListener("transcrito", atualizar);
+    return () => {
+      window.removeEventListener("transcrito", atualizar);
+      window.removeEventListener("recuperado", atualizar);
+    };
   }, [router]);
 
   const publico = perfil.categoria === "poder_publico";
@@ -75,9 +80,7 @@ export default function Inicio() {
   const completo = Boolean(
     perfil.categoria && perfil.genero && (publico ? perfil.cargo : semFaixa || perfil.faixa),
   );
-  const naoExportadas = entrevistas.filter(
-    (e) => !ultimaExportacao || (e.atualizadaEm ?? e.iniciadaEm) > ultimaExportacao,
-  ).length;
+  const naoExportadas = entrevistasDesde(entrevistas, ultimaExportacao).length;
 
   async function comecar() {
     // O poder público entra sempre como adulto: o banco usa a faixa para abrir o bloco de
@@ -119,14 +122,17 @@ export default function Inicio() {
     setParaApagar(null);
   }
 
-  async function exportar() {
+  async function exportar(desde) {
     setExportando(true);
+    setArquivoZip(null);
     setFalha("");
     try {
       // Antes do ZIP: o que a fila gravar durante a montagem não está nele e tem que contar.
       const agora = new Date().toISOString();
-      const { blob, total } = await montarZip(banco, { aparelho: await infoDoAparelho() });
-      baixar(blob, `entrevistas-${agora.slice(0, 10)}-${total}.zip`);
+      const { blob, total } = await montarZip(banco, { desde, aparelho: await infoDoAparelho() });
+      const nome = `entrevistas-${agora.slice(0, 10)}-${total}.zip`;
+      baixar(blob, nome);
+      setArquivoZip(new File([blob], nome, { type: "application/zip" }));
       try {
         localStorage.setItem(ULTIMA_EXPORTACAO, agora);
       } catch {
@@ -138,6 +144,16 @@ export default function Inicio() {
       registrarErro("exportar", erro);
     } finally {
       setExportando(false);
+    }
+  }
+
+  async function compartilhar() {
+    try {
+      await navigator.share({ files: [arquivoZip] });
+    } catch (erro) {
+      if (erro.name === "AbortError") return;
+      setFalha("Não consegui compartilhar o ZIP. Tente de novo.");
+      registrarErro("compartilhar", erro);
     }
   }
 
@@ -264,10 +280,20 @@ export default function Inicio() {
               <Link href="/consolidado/" className="botao secundario">
                 Ver consolidado
               </Link>
-              <button type="button" className="botao secundario" onClick={exportar} disabled={exportando}>
+              <button type="button" className="botao secundario" onClick={() => exportar()} disabled={exportando}>
                 <Icone nome="baixar" />
                 {exportando ? "Preparando…" : "Exportar tudo (ZIP)"}
               </button>
+              {naoExportadas > 0 && naoExportadas < entrevistas.length && (
+                <button type="button" className="botao secundario" onClick={() => exportar(ultimaExportacao)} disabled={exportando}>
+                  Exportar só as novas ({naoExportadas})
+                </button>
+              )}
+              {arquivoZip && navigator.canShare?.({ files: [arquivoZip] }) && (
+                <button type="button" className="botao secundario" onClick={compartilhar}>
+                  Compartilhar ZIP (WhatsApp, e-mail…)
+                </button>
+              )}
             </div>
           </>
         )}

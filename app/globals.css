@@ -646,3 +646,68 @@ input.pin {
   padding: 12px;
   font-variant-numeric: tabular-nums;
 }
+
+.tela-entrevista .conteudo {
+  padding-bottom: max(220px, calc(100vh - var(--recuo-campo, 170px)));
+}
+
+.indice {
+  position: sticky;
+  top: var(--altura-topo, 76px);
+  z-index: 9;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 10px 16px;
+  background: var(--fundo);
+  border-bottom: 2px solid var(--borda);
+}
+
+.indice .chip {
+  flex: none;
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  border: 2px solid var(--azul);
+  border-radius: 99px;
+  color: var(--azul-tinta);
+  background: var(--papel);
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.cartao[id^="p-"],
+.secao[id^="secao-"] {
+  scroll-margin-top: var(--recuo-campo, 170px);
+}
+
+.sem-resposta {
+  color: var(--laranja-tinta);
+  background: var(--dourado-veu);
+  padding: 4px 10px;
+  border-left: 4px solid var(--laranja);
+  font-weight: 600;
+}
+
+@media (max-width: 430px) {
+  .rodape-entrevista {
+    flex-wrap: wrap;
+  }
+
+  .rodape-entrevista > div {
+    flex-basis: 100% !important;
+  }
+}
+
+@media print {
+  .tela-entrevista .conteudo {
+    padding: 0;
+  }
+
+  .indice {
+    display: none;
+  }
+}
