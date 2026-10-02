@@ -29,7 +29,7 @@ test("painel calcula números, duração média, eixos e cobertura sem comunidad
   assert.deepEqual([r.total, r.concluidas, r.emAndamento, r.duracaoMedia, r.comunidades], [5, 2, 3, 16, 2]);
   assert.deepEqual(r.porCategoria.map((c) => [c.valor, c.total, c.pct]), [["agricultor", 2, 40], ["assentado", 1, 20], ["lideranca", 1, 20], ["ater", 1, 20]]);
   assert.deepEqual(r.porGenero.map((c) => [c.valor, c.total, c.pct]), [["feminino", 4, 80], ["masculino", 1, 20]]);
-  assert.deepEqual(r.porFaixa.map((c) => [c.valor, c.total, c.pct]), [["adulto", 4, 80]]);
+  assert.deepEqual(r.porFaixa.map((c) => [c.valor, c.total, c.pct]), [["adulto", 4, 80], ["", 1, 20]]);
   assert.deepEqual(r.porComunidade, [{ rotulo: "Sítio Novo", total: 3 }, { rotulo: "Outra", total: 1 }]);
   assert.equal(resumoDoPainel(banco, []).duracaoMedia, null);
   assert.equal(resumoDoPainel(banco, [lista[2]]).duracaoMedia, null);
