@@ -6,9 +6,9 @@ import { useEffect, useState } from "react";
 
 import Icone from "@/components/Icone";
 import Topo from "@/components/Topo";
-import { CHAVE } from "@/components/Tranca";
 import banco from "@/data/perguntas.json";
 import { apagarEntrevista, listarEntrevistas, novoId, salvarEntrevista } from "@/lib/db.mjs";
+import { anotarApagada, garantirIdentidade } from "@/lib/enviar.mjs";
 import { baixar, entrevistasDesde, montarZip } from "@/lib/exportar.mjs";
 import { montarFormulario, progresso } from "@/lib/montar-formulario.mjs";
 import { ULTIMA_EXPORTACAO, infoDoAparelho, registrarErro } from "@/lib/registro.mjs";
@@ -65,13 +65,15 @@ export default function Inicio() {
     atualizar();
     window.addEventListener("transcrito", atualizar);
     window.addEventListener("recuperado", atualizar);
+    window.addEventListener("sincronizado", atualizar);
     setUltimaExportacao(lerLocal(ULTIMA_EXPORTACAO));
     // ponytail: persisted() no Safari iOS a confirmar; o aviso some se ele sempre disser false sem PWA.
     navigator.storage?.persisted?.().then(setPersistido, () => {});
-    for (const rota of ["/entrevista/", "/relatorio/", "/consolidado/", "/aparelho/"]) router.prefetch(rota);
+    for (const rota of ["/entrevista/", "/relatorio/", "/consolidado/", "/painel/", "/aparelho/"]) router.prefetch(rota);
     return () => {
       window.removeEventListener("transcrito", atualizar);
       window.removeEventListener("recuperado", atualizar);
+      window.removeEventListener("sincronizado", atualizar);
     };
   }, [router]);
 
@@ -86,16 +88,12 @@ export default function Inicio() {
     // O poder público entra sempre como adulto: o banco usa a faixa para abrir o bloco de
     // juventude, e secretário não responde pergunta de permanência no campo.
     const escolhido = publico ? { ...perfil, faixa: "adulto" } : perfil;
-    let entrevistador = "";
-    try {
-      entrevistador = JSON.parse(localStorage.getItem(CHAVE) || "{}").nome || "";
-    } catch {
-      entrevistador = "";
-    }
+    const conta = garantirIdentidade();
     const entrevista = {
       id: novoId(),
       perfil: escolhido,
-      entrevistador,
+      entrevistador: conta?.nome || "",
+      entrevistadorId: conta?.id || "",
       respostas: {},
       bancoVersao: banco.versao,
       appVersao: process.env.NEXT_PUBLIC_VERSAO,
@@ -115,6 +113,7 @@ export default function Inicio() {
   async function apagar(id) {
     try {
       await apagarEntrevista(id);
+      anotarApagada(id);
       setEntrevistas(await listarEntrevistas());
     } catch {
       setFalha("Não consegui apagar agora. Tente de novo.");
@@ -297,6 +296,7 @@ export default function Inicio() {
             </div>
           </>
         )}
+        <Link href="/painel/" className="botao secundario" style={{ marginTop: 12 }}>Painel</Link>
         <Link href="/aparelho/" className="discreto alvo-toque">Aparelho e versão</Link>
         </main>
       </div>

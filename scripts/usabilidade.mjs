@@ -229,6 +229,11 @@ for (const device of DEVICES) {
   await espera(2000);
   registrar(device, "consolidado", await js(AUDITORIA));
   await foto(`${device.nome}-5-consolidado`);
+
+  await cdp("Page.navigate", { url: `${BASE}/painel/` });
+  await espera(2000);
+  registrar(device, "painel", await js(AUDITORIA));
+  await foto(`${device.nome}-6-painel`);
 }
 
 fechar();
@@ -240,7 +245,7 @@ for (const p of problemas) {
   porTipo.get(chave).devices.add(p.device);
 }
 
-console.log(`\n${DEVICES.length} aparelhos · 5 telas cada · telas em ${SAIDA}/\n`);
+console.log(`\n${DEVICES.length} aparelhos · 7 telas cada · telas em ${SAIDA}/\n`);
 if (porTipo.size === 0) {
   console.log("nenhum problema de usabilidade encontrado");
 } else {

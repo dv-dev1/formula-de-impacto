@@ -9,8 +9,8 @@ Funciona sem sinal de celular: é onde a entrevista acontece.
 
 ```
 $ npm test
-ℹ tests 77
-ℹ pass 77
+ℹ tests 97
+ℹ pass 97
 ℹ fail 0
 
 $ npm run validar
@@ -39,6 +39,7 @@ rota de transcrição está sem limite por IP até existir sessão ou regra de W
 | Gravação em pedaços e recuperação | `lib/gravacao.mjs`, `lib/recuperar-gravacoes.mjs` |
 | Exportação em ZIP | `lib/exportar.mjs` |
 | Consolidado do território | `lib/territorio.mjs`, `app/consolidado/page.jsx` |
+| Painel e envio ao banco D1 | `lib/painel.mjs`, `lib/enviar.mjs`, `functions/api/sincronizar.js`, `functions/api/painel.js` |
 | Erros e tela Aparelho | `lib/registro.mjs`, `app/aparelho/page.jsx` |
 | Funcionamento offline | `public/sw.js`, `scripts/carimbar-sw.mjs` |
 
@@ -79,6 +80,35 @@ A tela mostra:
 
 Os filtros são por perfil, comunidade, entrevistador e período. As contagens do recorte saem em
 CSV; o relatório inteiro, com mapa e respostas abertas, sai em PDF pela impressão.
+
+## Painel e banco
+
+O botão Painel abre os números de quem entrevista neste tablet: grupos mais ouvidos, cobertura,
+ritmo por dia e respostas mais frequentes. Sem sinal, usa as entrevistas locais. O coordenador
+também pode ver a equipe inteira ou escolher um entrevistador.
+
+O banco D1 `formula-de-impacto` recebe o cadastro e o JSON das entrevistas, incluindo a transcrição,
+sem áudio. O envio acontece ao abrir o app, voltar a rede e concluir; o IndexedDB continua guardando
+a entrevista no tablet. A credencial liga cada entrevista ao entrevistador.
+
+Para promover um coordenador, copie o **ID do entrevistador** da tela `/aparelho/` e execute:
+
+```bash
+npx wrangler d1 execute formula-de-impacto --remote --command "UPDATE entrevistadores SET papel='coordenador' WHERE id='<id>'"
+```
+
+Na prévia, use o banco `formula-de-impacto-previa` e aplique a migração com o ambiente de prévia:
+
+```bash
+npx wrangler d1 migrations apply formula-de-impacto-previa --remote --env preview
+```
+
+Sem `SINCRONIZAR=1`, `npm run validar` bloqueia as duas APIs de banco e pula os cenários de envio e
+isolamento. Para exercitar o D1 local (com `wrangler pages dev`) ou a prévia, habilite o envio:
+
+```bash
+SINCRONIZAR=1 BASE_URL=http://localhost:8788 CDP_PORT=9223 npm run validar
+```
 
 ## Transcrição
 

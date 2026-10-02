@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import Topo from "@/components/Topo";
+import { garantirIdentidade } from "@/lib/enviar.mjs";
 import { infoDoAparelho } from "@/lib/registro.mjs";
 
 const tamanho = (bytes) => bytes == null ? "indisponível" : `${(bytes / 1024 / 1024).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} MB`;
@@ -11,9 +12,11 @@ const simOuNao = (valor) => valor == null ? "indisponível" : valor ? "sim" : "n
 
 export default function Aparelho() {
   const [info, setInfo] = useState(null);
+  const [entrevistadorId, setEntrevistadorId] = useState("");
 
   useEffect(() => {
     infoDoAparelho().then(setInfo);
+    setEntrevistadorId(garantirIdentidade()?.id || "");
   }, []);
 
   return (
@@ -27,6 +30,7 @@ export default function Aparelho() {
                 <h2 className="secao" style={{ marginTop: 0 }}>Versão e armazenamento</h2>
                 <p>Versão do app: <strong>{info.versao || "dev"}</strong></p>
                 <p>Versão do questionário: <strong>{info.bancoVersao}</strong></p>
+                <p>ID do entrevistador: <strong>{entrevistadorId || "indisponível"}</strong></p>
                 <p>Service worker ativo: <strong>{simOuNao(info.swAtivo)}</strong></p>
                 <p>Armazenamento persistido: <strong>{simOuNao(info.persistido)}</strong></p>
                 <p>Espaço usado: <strong>{tamanho(info.estimate.usado)}</strong></p>

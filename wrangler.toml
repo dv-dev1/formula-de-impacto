@@ -4,3 +4,20 @@ compatibility_date = "2026-09-01"
 
 [ai]
 binding = "AI"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "formula-de-impacto"
+database_id = "1984b793-a347-4c7b-beb5-c21225e01fff"
+migrations_dir = "migrations"
+
+# Binding não herda do topo: a prévia repete a IA e aponta para outro banco, para a bateria
+# contra a prévia não gravar no banco de produção.
+[env.preview.ai]
+binding = "AI"
+
+[[env.preview.d1_databases]]
+binding = "DB"
+database_name = "formula-de-impacto-previa"
+database_id = "32aa2ac6-990c-4737-8ca0-8ae43ff997e7"
+migrations_dir = "migrations"

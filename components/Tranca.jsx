@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from "react";
 
+import { novoId } from "@/lib/db.mjs";
+import { novoSegredo, sincronizar } from "@/lib/enviar.mjs";
+
 import Icone from "./Icone";
 
 export const CHAVE = "acesso-formula-impacto";
@@ -66,10 +69,11 @@ export default function Tranca({ children }) {
 
     try {
       const sal = crypto.randomUUID();
-      const conta = { nome: nome.trim(), sal, resumo: await embaralhar(pin, sal) };
+      const conta = { nome: nome.trim(), sal, resumo: await embaralhar(pin, sal), id: novoId(), segredo: novoSegredo() };
       localStorage.setItem(CHAVE, JSON.stringify(conta));
       setAcesso(conta);
       abrir();
+      sincronizar().catch(() => {});
     } catch {
       setErro(
         window.isSecureContext

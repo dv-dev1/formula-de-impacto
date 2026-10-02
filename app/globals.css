@@ -529,6 +529,47 @@ td.n {
   margin-top: 18px;
 }
 
+.numeros-painel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+.numeros-painel > div {
+  padding: 16px;
+  border: 2px solid var(--borda);
+  border-radius: var(--raio);
+  background: var(--papel);
+}
+
+.numeros-painel strong {
+  display: block;
+  font-size: 32px;
+  color: var(--azul);
+}
+
+.numeros-painel span {
+  display: block;
+  font-size: 15px;
+  color: var(--azul-tinta);
+}
+
+.resumo-painel {
+  display: grid;
+  gap: 18px;
+}
+
+.por-entrevistador {
+  table-layout: fixed;
+  font-size: 14px;
+}
+
+.por-entrevistador th,
+.por-entrevistador td {
+  padding: 10px 4px;
+  overflow-wrap: anywhere;
+}
+
 .filtros-territorio select,
 .filtros-territorio input {
   display: block;

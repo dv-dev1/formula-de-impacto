@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 
+import { sincronizar } from "@/lib/enviar.mjs";
 import { recuperarGravacoes } from "@/lib/recuperar-gravacoes.mjs";
 import { registrarErro } from "@/lib/registro.mjs";
 import { aoVoltarOnline, processarFila } from "@/lib/transcrever.mjs";
@@ -14,12 +15,14 @@ export default function TarefasDeFundo() {
     recuperarGravacoes()
       .catch((erro) => registrarErro("recuperacao", erro))
       .then(processarFila)
+      .catch(() => {})
+      .then(sincronizar)
       .catch(() => {});
     const aoErro = (evento) => registrarErro("window", evento.error ?? evento.message);
     const aoRejeitar = (evento) => registrarErro("unhandledrejection", evento.reason);
     window.addEventListener("error", aoErro);
     window.addEventListener("unhandledrejection", aoRejeitar);
-    const parar = aoVoltarOnline(() => processarFila().catch(() => {}));
+    const parar = aoVoltarOnline(() => processarFila().catch(() => {}).then(sincronizar).catch(() => {}));
     return () => {
       parar();
       window.removeEventListener("error", aoErro);

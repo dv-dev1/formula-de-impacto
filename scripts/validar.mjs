@@ -10,6 +10,7 @@ import { comandos, conectar, espera } from "./cdp.mjs";
 const BASE = process.env.BASE_URL ?? "https://formula-de-impacto.pages.dev";
 const PORTA = Number(process.env.CDP_PORT ?? 9223);
 const SO = process.env.CENARIO;
+const SINCRONIZAR = process.env.SINCRONIZAR === "1";
 
 const { cdp, js, fechar } = await conectar(PORTA);
 const { clicar, preencher, passarPelaTranca, limparAparelho } = comandos(js);
@@ -85,6 +86,9 @@ async function ate(condicao, segundos, passo = 1000) {
 await cdp("Page.enable");
 await cdp("Runtime.enable");
 await cdp("Network.enable");
+if (!SINCRONIZAR) {
+  await cdp("Network.setBlockedURLs", { urls: ["*/api/sincronizar*", "*/api/painel*"] });
+}
 await cdp("Emulation.setDeviceMetricsOverride", { width: 800, height: 1280, deviceScaleFactor: 1, mobile: true });
 
 // ---------------------------------------------------------------------------
@@ -632,6 +636,22 @@ await cenario("17-indice", async () => {
   checar("17-indice: reabrir entrevista rola até a primeira pendente", posicao.topo >= posicao.base && posicao.topo - posicao.base < 45, JSON.stringify(posicao));
 });
 
+const guardar = (store, lista) => js(`
+  return new Promise((res, rejeitar) => {
+    const abrir = indexedDB.open("entrevista-campo");
+    abrir.onsuccess = () => {
+      const db = abrir.result;
+      const tx = db.transaction(${JSON.stringify(store)}, "readwrite");
+      const store = tx.objectStore(${JSON.stringify(store)});
+      ${JSON.stringify(lista)}.forEach((entrevista) => store.put(entrevista));
+      tx.oncomplete = () => { db.close(); res(true); };
+      tx.onerror = () => { db.close(); rejeitar(tx.error); };
+      tx.onabort = () => { db.close(); rejeitar(tx.error); };
+    };
+    abrir.onerror = () => rejeitar(abrir.error);
+  });
+`);
+
 await cenario("18-consolidado", async () => {
   await rede(false);
   await irPara("/");
@@ -646,21 +666,6 @@ await cenario("18-consolidado", async () => {
     iniciadaEm: "2026-10-01T12:00:00.000Z",
     concluidaEm: "2026-10-01T12:20:00.000Z",
   }));
-  const guardar = (store, lista) => js(`
-    return new Promise((res, rejeitar) => {
-      const abrir = indexedDB.open("entrevista-campo");
-      abrir.onsuccess = () => {
-        const db = abrir.result;
-        const tx = db.transaction(${JSON.stringify(store)}, "readwrite");
-        const store = tx.objectStore(${JSON.stringify(store)});
-        ${JSON.stringify(lista)}.forEach((entrevista) => store.put(entrevista));
-        tx.oncomplete = () => { db.close(); res(true); };
-        tx.onerror = () => { db.close(); rejeitar(tx.error); };
-        tx.onabort = () => { db.close(); rejeitar(tx.error); };
-      };
-      abrir.onerror = () => rejeitar(abrir.error);
-    });
-  `);
   await guardar("entrevistas", entrevistas);
   await irPara("/consolidado/");
   const contar = () => js(`return Number(document.querySelector("#total-entrevistas")?.dataset.total ?? -1);`);
@@ -678,6 +683,115 @@ await cenario("18-consolidado", async () => {
   await cdp("Page.reload", { ignoreCache: true });
   const persistiu = await ate(async () => (await contar()) === antes + 1, 10);
   checar("18-consolidado: importada sobrevive a outro reload", persistiu);
+});
+
+await cenario("22-painel", async () => {
+  await rede(false);
+  await irPara("/");
+  await limparAparelho();
+  await irPara("/");
+  await passarPelaTranca("1234");
+  const conta = await js(`return JSON.parse(localStorage.getItem("acesso-formula-impacto"));`);
+  if (!conta?.id) throw new Error("cadastro não criou o ID do entrevistador");
+  const prefixo = `validacao-painel-${Date.now()}`;
+  await guardar("entrevistas", ["agricultor", "agricultor", "ater"].map((categoria, i) => ({
+    id: `${prefixo}-${i}`,
+    perfil: { categoria, faixa: "adulto", genero: "feminino" },
+    respostas: { nome: `Painel ${i}`, comunidade: "Sítio Novo", qualidade_de_vida: "Muito boa" },
+    entrevistadorId: conta.id,
+    entrevistador: conta.nome,
+    iniciadaEm: "2026-10-02T12:00:00.000Z",
+    concluidaEm: "2026-10-02T12:20:00.000Z",
+  })));
+  await cdp("Emulation.setDeviceMetricsOverride", { width: 360, height: 800, deviceScaleFactor: 1, mobile: true });
+  try {
+    await irPara("/painel/");
+    const tela = await textoDaTela();
+    checar("22-painel: mostra o grupo mais ouvido", tela.includes("Agricultor(a) familiar — 2 de 3"));
+    const maioria = await js(`
+      const titulo = [...document.querySelectorAll("h2")].find((h) => h.textContent === "O que a maioria respondeu");
+      return Boolean(titulo?.parentElement.innerText.includes("Muito boa — 100% (3 de 3)"));
+    `);
+    checar("22-painel: maioria usa o alcance dos três perfis", maioria);
+    checar("22-painel: cabe sem rolagem horizontal em 360 px", await js(`return document.documentElement.scrollWidth <= innerWidth;`));
+  } finally {
+    await cdp("Emulation.setDeviceMetricsOverride", { width: 800, height: 1280, deviceScaleFactor: 1, mobile: true });
+  }
+});
+
+await cenario("23-sincronizar", async () => {
+  if (!SINCRONIZAR) {
+    console.log("pulado 23-sincronizar: use SINCRONIZAR=1 para gravar no banco");
+    return;
+  }
+  await rede(false);
+  await irPara("/");
+  await limparAparelho();
+  try {
+    await rede(true);
+    await irPara("/");
+    await passarPelaTranca("1234");
+    const conta = await js(`return JSON.parse(localStorage.getItem("acesso-formula-impacto"));`);
+    const id = `validacao-envio-${Date.now()}`;
+    const versao = new Date().toISOString();
+    await guardar("entrevistas", [{
+      id, entrevistadorId: conta.id, entrevistador: conta.nome,
+      perfil: { categoria: "ater", genero: "feminino" }, respostas: { nome: "Sem sinal" },
+      iniciadaEm: versao, atualizadaEm: versao,
+    }]);
+    await rede(false);
+    await js(`window.dispatchEvent(new Event("online")); return true;`);
+    const chegou = await ate(() => js(`
+      try {
+        const conta = JSON.parse(localStorage.getItem("acesso-formula-impacto"));
+        const resposta = await fetch("/api/painel", { headers: { authorization: "Bearer " + conta.id + "." + conta.segredo } });
+        if (!resposta.ok) return false;
+        return (await resposta.json()).entrevistas.some((e) => e.id === ${JSON.stringify(id)});
+      } catch { return false; }
+    `), 20);
+    checar("23-sincronizar: entrevista offline chega ao banco quando a rede volta", chegou);
+    const marcada = await ate(() => js(`
+      return new Promise((res, rejeitar) => {
+        const abrir = indexedDB.open("entrevista-campo");
+        abrir.onsuccess = () => {
+          const db = abrir.result;
+          const tx = db.transaction("entrevistas", "readonly");
+          const pedido = tx.objectStore("entrevistas").get(${JSON.stringify(id)});
+          pedido.onsuccess = () => res(pedido.result?.enviadaEm === ${JSON.stringify(versao)});
+          tx.oncomplete = () => db.close();
+          tx.onerror = () => { db.close(); rejeitar(tx.error); };
+        };
+        abrir.onerror = () => rejeitar(abrir.error);
+      });
+    `), 5);
+    checar("23-sincronizar: enviadaEm fica gravado no IndexedDB", marcada);
+  } finally {
+    await rede(false);
+  }
+});
+
+await cenario("24-isolamento", async () => {
+  if (!SINCRONIZAR) {
+    console.log("pulado 24-isolamento: use SINCRONIZAR=1 para gravar no banco");
+    return;
+  }
+  const conta = (nome) => ({ id: crypto.randomUUID(), nome, segredo: [...crypto.getRandomValues(new Uint8Array(32))].map((b) => b.toString(16).padStart(2, "0")).join("") });
+  const a = conta("Validação A");
+  const b = conta("Validação B");
+  const a1 = crypto.randomUUID();
+  const b1 = crypto.randomUUID();
+  const headers = (c) => ({ authorization: `Bearer ${c.id}.${c.segredo}`, "content-type": "application/json" });
+  const postar = (c, id) => fetch(`${BASE}/api/sincronizar`, {
+    method: "POST", headers: headers(c),
+    body: JSON.stringify({ nome: c.nome, entrevistas: [{ id, perfil: { categoria: "ater" }, respostas: {}, iniciadaEm: new Date().toISOString() }], apagadas: [] }),
+  });
+  checar("24-isolamento: A envia sua entrevista", (await postar(a, a1)).ok);
+  checar("24-isolamento: B envia sua entrevista", (await postar(b, b1)).ok);
+  const resposta = await fetch(`${BASE}/api/painel`, { headers: headers(a) });
+  const dados = await resposta.json();
+  checar("24-isolamento: A lê a1 e não lê b1", resposta.ok && dados.entrevistas.some((e) => e.id === a1) && !dados.entrevistas.some((e) => e.id === b1));
+  const errado = await fetch(`${BASE}/api/painel`, { headers: headers({ ...a, segredo: b.segredo }) });
+  checar("24-isolamento: segredo errado de A recebe 401", errado.status === 401);
 });
 
 await cenario("19-csp", async () => {
@@ -701,7 +815,7 @@ await cenario("19-csp", async () => {
   });
   if (!script.identifier) throw new Error("não consegui instalar o listener de CSP");
   try {
-    for (const rota of ["/", "/aparelho/", "/relatorio/", "/consolidado/", "/entrevista/"]) {
+    for (const rota of ["/", "/aparelho/", "/relatorio/", "/consolidado/", "/painel/", "/entrevista/"]) {
       await irPara(rota);
     }
     const violacoes = await js(`return JSON.parse(sessionStorage.getItem("validacao-csp") || "[]");`);

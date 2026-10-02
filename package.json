@@ -11,7 +11,7 @@
     "validar": "node scripts/validar.mjs",
     "comparar": "node scripts/comparar-transcricao.mjs",
     "servir": "node scripts/servir.mjs",
-    "deploy": "npm run build && npx wrangler pages deploy out --project-name=formula-de-impacto --commit-dirty=true"
+    "deploy": "npm run build && npx wrangler d1 migrations apply formula-de-impacto --remote && npx wrangler pages deploy out --project-name=formula-de-impacto --commit-dirty=true"
   },
   "dependencies": {
     "jszip": "^3.10.1",

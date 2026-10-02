@@ -8,6 +8,7 @@ import Resposta from "@/components/Resposta";
 import Topo from "@/components/Topo";
 import banco from "@/data/perguntas.json";
 import { listarEntrevistas, obterEntrevista, salvarEntrevista } from "@/lib/db.mjs";
+import { sincronizar } from "@/lib/enviar.mjs";
 import {
   agruparPorSecao,
   idadeForaDaFaixa,
@@ -199,6 +200,7 @@ export default function Formulario() {
       return setFalha("não salvou no aparelho — não feche o app");
     }
     sujoRef.current = false;
+    sincronizar().catch(() => {});
     router.push(`/relatorio/?id=${entrevista.id}`);
   }
 
