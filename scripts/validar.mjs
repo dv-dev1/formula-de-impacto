@@ -358,7 +358,7 @@ await cenario("8-banco-resiliente", async () => {
       setTimeout(() => res("timeout"), 4000);
     });
   `);
-  checar("8-banco-resiliente: store perdido é recriado", recriou === "audios,entrevistas,pedacos", String(recriou));
+  checar("8-banco-resiliente: store perdido é recriado", recriou === "audios,entrevistas,importadas,pedacos", String(recriou));
 
   const depois = (await respostasGravadas())?.length ?? 0;
   checar("8-banco-resiliente: entrevistas já registradas não são perdidas", depois >= antes, `${antes} antes, ${depois} depois`);
@@ -630,6 +630,54 @@ await cenario("17-indice", async () => {
     return { topo, base };
   `);
   checar("17-indice: reabrir entrevista rola até a primeira pendente", posicao.topo >= posicao.base && posicao.topo - posicao.base < 45, JSON.stringify(posicao));
+});
+
+await cenario("18-consolidado", async () => {
+  await rede(false);
+  await irPara("/");
+  await passarPelaTranca("1234");
+  await cdp("Emulation.setDeviceMetricsOverride", { width: 820, height: 1280, deviceScaleFactor: 1, mobile: true });
+  const prefixo = `validacao-consolidado-${Date.now()}`;
+  const entrevistas = ["agricultor", "ater"].map((categoria, indice) => ({
+    id: `${prefixo}-${indice}`,
+    perfil: { categoria, faixa: "adulto", genero: "feminino" },
+    respostas: { nome: `Consolidado ${indice}`, comunidade: "Sítio Novo", qualidade_de_vida: "Muito boa" },
+    entrevistador: "Validação",
+    iniciadaEm: "2026-10-01T12:00:00.000Z",
+    concluidaEm: "2026-10-01T12:20:00.000Z",
+  }));
+  const guardar = (store, lista) => js(`
+    return new Promise((res, rejeitar) => {
+      const abrir = indexedDB.open("entrevista-campo");
+      abrir.onsuccess = () => {
+        const db = abrir.result;
+        const tx = db.transaction(${JSON.stringify(store)}, "readwrite");
+        const store = tx.objectStore(${JSON.stringify(store)});
+        ${JSON.stringify(lista)}.forEach((entrevista) => store.put(entrevista));
+        tx.oncomplete = () => { db.close(); res(true); };
+        tx.onerror = () => { db.close(); rejeitar(tx.error); };
+        tx.onabort = () => { db.close(); rejeitar(tx.error); };
+      };
+      abrir.onerror = () => rejeitar(abrir.error);
+    });
+  `);
+  await guardar("entrevistas", entrevistas);
+  await irPara("/consolidado/");
+  const contar = () => js(`return Number(document.querySelector("#total-entrevistas")?.dataset.total ?? -1);`);
+  const carregou = await ate(async () => (await contar()) >= 2, 10);
+  checar("18-consolidado: mapa de visão aparece", carregou && await js(`return Boolean(document.querySelector("table.mapa-visao"));`));
+  const largura = await js(`
+    return Math.max(0, ...[...document.querySelectorAll(".contagem .trilho.dados span")].map((barra) => barra.getBoundingClientRect().width));
+  `);
+  checar("18-consolidado: barra tem mais de 200 px numa janela de 820 px", largura > 200, `${largura} px`);
+  const antes = await contar();
+  await guardar("importadas", [{ ...entrevistas[0], id: `${prefixo}-importada`, respostas: { ...entrevistas[0].respostas, nome: "Importada persistida" } }]);
+  await cdp("Page.reload", { ignoreCache: true });
+  const contou = await ate(async () => (await contar()) === antes + 1, 10);
+  checar("18-consolidado: entrevista importada continua contada após recarregar", contou, `${antes} antes, ${await contar()} depois`);
+  await cdp("Page.reload", { ignoreCache: true });
+  const persistiu = await ate(async () => (await contar()) === antes + 1, 10);
+  checar("18-consolidado: importada sobrevive a outro reload", persistiu);
 });
 
 await cenario("19-csp", async () => {

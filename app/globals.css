@@ -512,6 +512,152 @@ td.n {
   }
 }
 
+.cabecalho-territorio {
+  display: none;
+}
+
+.filtros-territorio {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.filtros-territorio select,
+.filtros-territorio input {
+  display: block;
+  width: 100%;
+  min-height: var(--alvo);
+  padding: 12px;
+  border: 2px solid var(--borda);
+  border-radius: var(--raio);
+  background: var(--papel);
+  color: inherit;
+  font: inherit;
+}
+
+.acoes-territorio {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.tabela-rolagem {
+  overflow-x: auto;
+}
+
+.tabela-territorio {
+  min-width: 620px;
+}
+
+.tabela-territorio th:first-child {
+  min-width: 200px;
+}
+
+.tabela-territorio td {
+  min-width: 110px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* O azul mede intensidade, pois uma média alta pode indicar um problema em escalas invertidas. */
+.media-visao {
+  background: rgba(0, 84, 162, var(--intensidade));
+}
+
+.amostra {
+  display: block;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.visoes-diferentes {
+  background: var(--dourado-veu);
+  color: var(--azul-tinta);
+  border-color: var(--dourado);
+  font-size: 13px;
+  margin-top: 6px;
+}
+
+.cobertura-zero {
+  background: var(--dourado-veu);
+  font-weight: 700;
+}
+
+.media-visao,
+.cobertura-zero,
+.visoes-diferentes {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.lista-abertas {
+  display: grid;
+  gap: 18px;
+}
+
+.falas {
+  padding-left: 22px;
+}
+
+.falas p {
+  white-space: pre-wrap;
+  margin-bottom: 4px;
+}
+
+@media (max-width: 430px) {
+  .consolidado .contagem td {
+    padding: 10px 4px;
+    font-size: 14px;
+  }
+
+  .consolidado .contagem td.n {
+    white-space: normal;
+  }
+}
+
+@media print {
+  .cabecalho-territorio {
+    display: block;
+  }
+
+  .consolidado table {
+    break-inside: avoid;
+  }
+
+  .consolidado .tabela-rolagem {
+    overflow: visible;
+  }
+
+  .consolidado .tabela-territorio {
+    width: 100%;
+    min-width: 0;
+    table-layout: fixed;
+    font-size: 8pt;
+  }
+
+  .consolidado .tabela-territorio th,
+  .consolidado .tabela-territorio td {
+    min-width: 0;
+    padding: 4px;
+  }
+
+  .consolidado .tabela-territorio th:first-child {
+    width: 26%;
+  }
+
+  .consolidado .amostra {
+    font-size: 7pt;
+    white-space: normal;
+  }
+
+  .consolidado .visoes-diferentes {
+    font-size: 7pt;
+    border-radius: 0;
+    padding: 2px;
+  }
+}
+
 /* Cinco colunas em 360px dão alvos de 40px — abaixo do mínimo de toque. Numa tela
    estreita a escala vira lista: perde a metáfora de régua, ganha o dedo acertando. */
 @media (max-width: 430px) {
