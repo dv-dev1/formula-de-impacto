@@ -159,7 +159,7 @@ export default function Painel() {
                 <table className="por-entrevistador" aria-label="Por entrevistador">
                   <thead><tr><th scope="col">Nome</th><th scope="col">Entrevistas</th><th scope="col">Concluídas</th><th scope="col">Última entrevista</th></tr></thead>
                   <tbody>
-                    {equipe.entrevistadores.map((e) => {
+                    {equipe.entrevistadores.filter((e) => !selecionado || e.id === selecionado).map((e) => {
                       const entrevistas = equipe.entrevistas.filter((item) => item.entrevistadorId === e.id);
                       const ultima = entrevistas.map((item) => item.iniciadaEm).sort().at(-1);
                       return <tr key={e.id}><td>{e.nome}</td><td>{entrevistas.length}</td><td>{entrevistas.filter((item) => item.concluidaEm).length}</td><td>{ultima ? new Date(ultima).toLocaleDateString("pt-BR") : "—"}</td></tr>;
@@ -167,7 +167,7 @@ export default function Painel() {
                   </tbody>
                 </table>
               </div>
-              <Resumo resumo={resumoEquipe} />
+              {recorte.length ? <Resumo resumo={resumoEquipe} /> : <p>Nenhuma entrevista deste entrevistador no banco ainda.</p>}
             </section>
           )}
         </main>
