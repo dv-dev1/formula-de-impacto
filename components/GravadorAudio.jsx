@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from "react";
 
 import { apagarPedacos, novoId, obterAudio, salvarAudio, salvarPedaco } from "@/lib/db.mjs";
 import { registrarErro } from "@/lib/registro.mjs";
+import { anexarAudio } from "@/lib/recuperar-gravacoes.mjs";
 import { FORMATOS } from "@/lib/formatos-audio.mjs";
-import { desenfileirar, enfileirar, juntarTranscricao, semTranscricaoAntiga, transcrever } from "@/lib/transcrever.mjs";
+import { desenfileirar, enfileirar, juntarTranscricao, processarFila, semTranscricaoAntiga, transcrever } from "@/lib/transcrever.mjs";
 import Icone from "./Icone";
 
 const formatoSuportado = () =>
@@ -200,9 +201,10 @@ export default function GravadorAudio({ entrevistaId, perguntaId, valor, aoGrava
       };
       gravador.onstop = async () => {
         liberarRecursos();
-        if (!vivoRef.current) return;
-        setNivel(null);
-        setSilencio(false);
+        if (vivoRef.current) {
+          setNivel(null);
+          setSilencio(false);
+        }
         const duracao = Math.round((Date.now() - inicioRef.current) / 1000);
         const id = novoId();
         try {
@@ -214,21 +216,36 @@ export default function GravadorAudio({ entrevistaId, perguntaId, valor, aoGrava
             extensao: formato.extensao,
           });
         } catch (erro) {
-          setErro("Não consegui guardar o áudio no aparelho. Anote a resposta no campo abaixo.");
           registrarErro("gravador", erro);
-          setGravando(false);
+          if (vivoRef.current) {
+            setErro("Não consegui guardar o áudio no aparelho. Anote a resposta no campo abaixo.");
+            setGravando(false);
+          }
           return;
         }
         // O último ondataavailable ainda pode estar escrevendo quando onstop chega.
         await Promise.all(gravacoes);
-        if (!vivoRef.current) return;
-        aoGravar({ ...semTranscricaoAntiga(valorRef.current), audioId: id, duracao });
-        setGravando(false);
-        transcreverAgora(id);
+        let anexado = false;
         try {
-          await apagarPedacos(gravacaoId);
+          anexado = await anexarAudio(entrevistaId, perguntaId, id, duracao);
         } catch (erro) {
-          registrarErro("gravador-pedaco", erro);
+          registrarErro("gravador", erro);
+        }
+        if (vivoRef.current) {
+          aoGravar({ ...semTranscricaoAntiga(valorRef.current), audioId: id, duracao });
+          setGravando(false);
+          transcreverAgora(id);
+        }
+        if (!vivoRef.current && anexado) {
+          enfileirar(entrevistaId, perguntaId, id);
+          processarFila().catch(() => {});
+        }
+        if (anexado) {
+          try {
+            await apagarPedacos(gravacaoId);
+          } catch (erro) {
+            registrarErro("gravador-pedaco", erro);
+          }
         }
       };
       gravadorRef.current = gravador;

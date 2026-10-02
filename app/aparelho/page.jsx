@@ -37,6 +37,8 @@ export default function Aparelho() {
                 <p>Entrevistas no aparelho: <strong>{info.entrevistas.total ?? "indisponível"}</strong></p>
                 <p>Concluídas: <strong>{info.entrevistas.concluidas ?? "indisponível"}</strong></p>
                 <p>Transcrições pendentes: <strong>{info.transcricoesPendentes}</strong></p>
+                <p>Pedaços de gravação a recuperar: <strong>{info.pedacosPendentes ?? "indisponível"}</strong></p>
+                <p>Entrevistas importadas no consolidado: <strong>{info.importadas ?? "indisponível"}</strong></p>
                 <p>Última exportação: <strong>{data(info.ultimaExportacao)}</strong></p>
               </div>
               <div className="cartao">

@@ -14,7 +14,7 @@ $ npm test
 ℹ fail 0
 
 $ npm run validar
-66 verificações · 65 passaram · 1 falharam
+72 verificações · 71 passaram · 1 falharam
   FALHA 13-limite: rajada de pedidos do mesmo IP recebe 429 — 400,400,400,…
 
 $ npm run test:ui
@@ -77,7 +77,8 @@ A tela mostra:
 - as respostas abertas, sem nome e em ordem de texto;
 - a cobertura das 9 categorias por comunidade, com o zero em destaque.
 
-Os filtros são por perfil, comunidade, entrevistador e período. O recorte sai em CSV ou PDF.
+Os filtros são por perfil, comunidade, entrevistador e período. As contagens do recorte saem em
+CSV; o relatório inteiro, com mapa e respostas abertas, sai em PDF pela impressão.
 
 ## Transcrição
 

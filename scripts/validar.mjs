@@ -712,6 +712,88 @@ await cenario("19-csp", async () => {
   }
 });
 
+const iniciarGravacaoDeTeste = async () => {
+  if (!(await acharGravador())) throw new Error("nenhum botão de gravar na tela");
+  const origem = await js(`
+    const botao = [...document.querySelectorAll("button")].find((b) => /Gravar resposta/.test(b.textContent));
+    if (!botao) throw new Error("botão de gravar não encontrado");
+    const perguntaId = botao.closest(".cartao").id.slice(2);
+    const entrevistaId = new URLSearchParams(location.search).get("id");
+    botao.click();
+    return { entrevistaId, perguntaId };
+  `);
+  const comecou = await ate(async () => (await textoDaTela()).includes("Parar —"), 8);
+  if (!comecou) throw new Error("gravação não começou");
+  return origem;
+};
+
+const consultaGravacaoNoBanco = (entrevistaId, perguntaId) => `
+  return new Promise((res, rejeitar) => {
+    const abrir = indexedDB.open("entrevista-campo");
+    abrir.onsuccess = () => {
+      const db = abrir.result;
+      const tx = db.transaction(["entrevistas", "audios", "pedacos"], "readonly");
+      let audioId;
+      let audioExiste = false;
+      let pedacos;
+      const entrevista = tx.objectStore("entrevistas").get(${JSON.stringify(entrevistaId)});
+      entrevista.onsuccess = () => {
+        audioId = entrevista.result?.respostas?.[${JSON.stringify(perguntaId)}]?.audioId;
+        if (!audioId) return;
+        const audio = tx.objectStore("audios").get(audioId);
+        audio.onsuccess = () => { audioExiste = Boolean(audio.result); };
+      };
+      const quantidade = tx.objectStore("pedacos").count();
+      quantidade.onsuccess = () => { pedacos = quantidade.result; };
+      tx.oncomplete = () => { db.close(); res({ audioId, audioExiste, pedacos }); };
+      tx.onerror = () => { db.close(); rejeitar(tx.error); };
+      tx.onabort = () => { db.close(); rejeitar(tx.error); };
+    };
+    abrir.onerror = () => rejeitar(abrir.error);
+  });
+`;
+
+await cenario("20-sair-gravando", async () => {
+  await rede(false);
+  await abrirEntrevista(["Agricultor(a) familiar", "Adulto", "Homem"]);
+  const { entrevistaId, perguntaId } = await iniciarGravacaoDeTeste();
+  await espera(12000);
+  const saiu = await js(`
+    const voltar = document.querySelector('.topo a[aria-label="Voltar"]');
+    if (!voltar) return false;
+    voltar.click();
+    return true;
+  `);
+  if (!saiu) throw new Error("Voltar do topo não encontrado");
+  await espera(2000);
+  checar("20-sair-gravando: Voltar sai da entrevista", await js(`return !location.pathname.startsWith("/entrevista");`));
+  const gravacao = await js(consultaGravacaoNoBanco(entrevistaId, perguntaId));
+  checar("20-sair-gravando: resposta já aponta para o áudio no banco", Boolean(gravacao.audioId));
+  checar("20-sair-gravando: áudio existe no store audios", gravacao.audioExiste);
+  checar("20-sair-gravando: store pedacos está vazio", gravacao.pedacos === 0, `${gravacao.pedacos} pedaços`);
+});
+
+await cenario("21-audio-no-banco", async () => {
+  await rede(false);
+  await abrirEntrevista(["Agricultor(a) familiar", "Adulto", "Homem"]);
+  const { entrevistaId, perguntaId } = await iniciarGravacaoDeTeste();
+  await espera(3000);
+  const gravacao = await js(`
+    const cartao = document.getElementById(${JSON.stringify(`p-${perguntaId}`)});
+    const botao = [...cartao.querySelectorAll("button")].find((b) => /^Parar/.test(b.textContent.trim()));
+    if (!botao) throw new Error("botão de parar não encontrado");
+    botao.click();
+    const limite = Date.now() + 10000;
+    while (!/^Gravar/.test(botao.textContent.trim())) {
+      if (Date.now() >= limite) throw new Error("botão não voltou para Gravar em 10 s");
+      await new Promise((res) => setTimeout(res, 10));
+    }
+    ${consultaGravacaoNoBanco(entrevistaId, perguntaId)}
+  `);
+  checar("21-audio-no-banco: resposta já tem audioId antes do autosave", Boolean(gravacao.audioId));
+  checar("21-audio-no-banco: áudio já existe no store audios", gravacao.audioExiste);
+});
+
 fechar();
 
 const falhas = resultados.filter((r) => !r.ok);
