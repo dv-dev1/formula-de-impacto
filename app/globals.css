@@ -457,6 +457,12 @@ textarea {
   font-size: 15px;
 }
 
+.alvo-toque {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;

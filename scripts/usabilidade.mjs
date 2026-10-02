@@ -52,6 +52,15 @@ const AUDITORIA = `
     return r.width > 0 && r.height > 0 && s.visibility !== "hidden" && s.display !== "none" && s.opacity !== "0";
   };
 
+  // Dentro de uma faixa que rola, o item fora da tela se alcança deslizando; a página que
+  // rola inteira já é pega pelo scroll-horizontal.
+  const rolaNaHorizontal = (el) => {
+    for (let pai = el.parentElement; pai; pai = pai.parentElement) {
+      if (["auto", "scroll"].includes(getComputedStyle(pai).overflowX)) return true;
+    }
+    return false;
+  };
+
   const achados = [];
   const doc = document.documentElement;
   if (doc.scrollWidth > window.innerWidth + 1) {
@@ -68,7 +77,7 @@ const AUDITORIA = `
         texto: (el.textContent || el.getAttribute("aria-label") || el.tagName).trim().slice(0, 40),
       });
     }
-    if (r.right > window.innerWidth + 1 || r.left < -1) {
+    if ((r.right > window.innerWidth + 1 || r.left < -1) && !rolaNaHorizontal(el)) {
       achados.push({ tipo: "fora-da-tela", texto: (el.textContent || el.tagName).trim().slice(0, 40) });
     }
   }

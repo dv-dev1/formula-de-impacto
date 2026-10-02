@@ -101,7 +101,7 @@ export default function Ficha() {
 
         {feitas < total && (
           <p className="aviso">
-            {total - feitas} sem resposta · <Link href={`/entrevista/?id=${entrevista.id}`}>Completar</Link>
+            {total - feitas} sem resposta · <Link href={`/entrevista/?id=${entrevista.id}`} className="alvo-toque">Completar</Link>
           </p>
         )}
 

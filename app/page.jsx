@@ -297,7 +297,7 @@ export default function Inicio() {
             </div>
           </>
         )}
-        <Link href="/aparelho/" className="discreto">Aparelho e versão</Link>
+        <Link href="/aparelho/" className="discreto alvo-toque">Aparelho e versão</Link>
         </main>
       </div>
 
