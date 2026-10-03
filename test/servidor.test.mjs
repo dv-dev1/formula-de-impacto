@@ -7,6 +7,7 @@ import { onRequestGet } from "../functions/api/painel.js";
 import { onRequestPost } from "../functions/api/sincronizar.js";
 import { onRequestPost as criarConta } from "../functions/api/conta/index.js";
 import { onRequestPost as entrar } from "../functions/api/entrar.js";
+import { onRequestPost as vincular } from "../functions/api/conta/vincular.js";
 import { hashDaSenha, hashDoSegredo } from "../lib/sincronizar.mjs";
 
 function bancoFalso(t, entreMigracoes = () => {}) {
@@ -56,6 +57,34 @@ const pedir = (handler, env, rota, corpo, headers = {}) => handler({
 });
 const LOGIN = { nome: "Carla", usuario: "carla", senha: "senha-123" };
 const tentar = (env, senha) => pedir(entrar, env, "/api/entrar", { usuario: "carla", senha });
+
+test("vincular grava usuário e senha numa conta antiga e depois entrar funciona", async (t) => {
+  const env = bancoFalso(t);
+  await postar(env, A, [entrevista("a1")]);
+  const r = await pedir(vincular, env, "/api/conta/vincular", { usuario: " Ana ", senha: "senha-ana" }, cabecalho(A));
+  assert.equal(r.status, 200);
+  assert.deepEqual(await r.json(), { usuario: "ana" });
+  const sessao = await (await pedir(entrar, env, "/api/entrar", { usuario: "ana", senha: "senha-ana" })).json();
+  assert.equal(sessao.id, A.id);
+  assert.equal(sessao.nome, A.nome);
+  assert.deepEqual((await (await ler(env, { ...A, segredo: sessao.token })).json()).entrevistas.map((e) => e.id), ["a1"]);
+  assert.equal((await ler(env)).status, 200);
+});
+
+test("vincular recusa credencial inválida, conta que já tem usuário e usuário de outra conta", async (t) => {
+  const env = bancoFalso(t);
+  await postar(env, A);
+  await postar(env, B);
+  const tentarVincular = (corpo, headers) => pedir(vincular, env, "/api/conta/vincular", corpo, headers);
+  assert.equal((await tentarVincular({ usuario: "ana", senha: "senha-ana" })).status, 401);
+  assert.equal((await tentarVincular({ usuario: "ana", senha: "senha-ana" }, cabecalho({ ...A, segredo: B.segredo }))).status, 401);
+  assert.equal((await tentarVincular({ usuario: "ana", senha: "senha-ana" }, cabecalho(A))).status, 200);
+  assert.equal((await tentarVincular({ usuario: "outra", senha: "senha-ana" }, cabecalho(A))).status, 409);
+  assert.equal((await tentarVincular({ usuario: "ANA", senha: "senha-bia" }, cabecalho(B))).status, 409);
+  assert.equal((await tentarVincular({ usuario: "bia", senha: "123" }, cabecalho(B))).status, 400);
+  assert.equal(env.sqlite.prepare("SELECT usuario FROM entrevistadores WHERE id = ?").get(B.id).usuario, null);
+  assert.equal(env.sqlite.prepare("SELECT usuario FROM entrevistadores WHERE id = ?").get(A.id).usuario, "ana");
+});
 
 test("primeira chamada cadastra com hash, nome aparado e sem enviadaEm no banco", async (t) => {
   const env = bancoFalso(t);
