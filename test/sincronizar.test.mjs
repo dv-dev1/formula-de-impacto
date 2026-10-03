@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
 
-import { daConta, entrevistaValida, hashDoSegredo, lerCredencial, pendentesDeEnvio, versaoDe } from "../lib/sincronizar.mjs";
+import { daConta, entrevistaValida, erroDeLogin, hashDaSenha, hashDoSegredo, lerCredencial, lerJson, normalizarUsuario, pendentesDeEnvio, versaoDe } from "../lib/sincronizar.mjs";
 
 const entrevista = { id: "a", perfil: {}, respostas: {}, iniciadaEm: "2026-10-01T12:00:00Z" };
 const segredo = "ab".repeat(32);
@@ -49,4 +49,35 @@ test("entrevista válida exige a forma mínima e id de até 100 caracteres", () 
 
 test("hash do segredo corresponde a SHA-256 em hexadecimal", async () => {
   assert.equal(await hashDoSegredo(segredo), createHash("sha256").update(segredo).digest("hex"));
+});
+
+test("hashDaSenha é PBKDF2-SHA256 com 100 mil iterações", async () => {
+  assert.equal(await hashDaSenha("senha-123", "sal-fixo"), "bc03202770dd9f1517b38af0aeed5b8a9d8a02d4c154b6d6648e48264bbb4000");
+  assert.notEqual(await hashDaSenha("senha-123", "outro-sal"), await hashDaSenha("senha-123", "sal-fixo"));
+});
+
+test("usuário normalizado e regras de login", () => {
+  assert.equal(normalizarUsuario("  Ana.Silva "), "ana.silva");
+  assert.equal(normalizarUsuario(42), "");
+  assert.equal(erroDeLogin("ana.silva", "senha-1"), "");
+  assert.match(erroDeLogin("ab", "senha-1"), /usuário/);
+  assert.match(erroDeLogin("ana silva", "senha-1"), /usuário/);
+  assert.match(erroDeLogin("ana", "12345"), /senha/);
+  assert.match(erroDeLogin("ana", "x".repeat(201)), /senha/);
+  assert.match(erroDeLogin("ana", undefined), /senha/);
+});
+
+test("lerJson aceita objeto e recusa JSON inválido, arrays e valores primitivos", async () => {
+  assert.deepEqual(await lerJson(new Request("https://teste", { method: "POST", body: '{"nome":"Carla"}' })), { nome: "Carla" });
+  for (const body of ["", "{", "null", "[]", '"carla"', "42", "true", "false"]) {
+    assert.equal(await lerJson(new Request("https://teste", { method: "POST", body })), null, body);
+  }
+});
+
+test("lerJson aceita 10 KB exatos e recusa um byte a mais, contando UTF-8", async () => {
+  const objeto = { texto: "á".repeat(5114) };
+  const body = JSON.stringify(objeto);
+  assert.equal(new TextEncoder().encode(body).byteLength, 10 * 1024);
+  assert.deepEqual(await lerJson(new Request("https://teste", { method: "POST", body })), objeto);
+  assert.equal(await lerJson(new Request("https://teste", { method: "POST", body: `${body} ` })), null);
 });
