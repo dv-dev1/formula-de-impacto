@@ -25,7 +25,10 @@ function bancoFalso(t, entreMigracoes = () => {}) {
         bind(...valores) { argumentos = valores; return this; },
         async first() { return consulta.get(...argumentos) ?? null; },
         async all() { return { results: consulta.all(...argumentos) }; },
-        async run() { return consulta.run(...argumentos); },
+        async run() {
+          const resultado = consulta.run(...argumentos);
+          return { ...resultado, meta: { changes: resultado.changes } };
+        },
       };
     },
     async batch(tarefas) {
@@ -84,6 +87,18 @@ test("vincular recusa credencial inválida, conta que já tem usuário e usuári
   assert.equal((await tentarVincular({ usuario: "bia", senha: "123" }, cabecalho(B))).status, 400);
   assert.equal(env.sqlite.prepare("SELECT usuario FROM entrevistadores WHERE id = ?").get(B.id).usuario, null);
   assert.equal(env.sqlite.prepare("SELECT usuario FROM entrevistadores WHERE id = ?").get(A.id).usuario, "ana");
+});
+
+test("vincular simultâneo na mesma conta permite um usuário e recusa o outro", async (t) => {
+  const env = bancoFalso(t);
+  await postar(env, A);
+  const respostas = await Promise.all(["ana", "outra"].map((usuario) =>
+    pedir(vincular, env, "/api/conta/vincular", { usuario, senha: "senha-ana" }, cabecalho(A))));
+  assert.deepEqual(respostas.map((r) => r.status).sort((a, b) => a - b), [200, 409]);
+  const sucesso = await respostas.find((r) => r.status === 200).json();
+  assert.ok(["ana", "outra"].includes(sucesso.usuario));
+  assert.equal(env.sqlite.prepare("SELECT usuario FROM entrevistadores WHERE id = ?").get(A.id).usuario, sucesso.usuario);
+  assert.deepEqual(await respostas.find((r) => r.status === 409).json(), { erro: "Esta conta já tem usuário." });
 });
 
 test("primeira chamada cadastra com hash, nome aparado e sem enviadaEm no banco", async (t) => {

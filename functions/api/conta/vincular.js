@@ -11,8 +11,9 @@ export async function onRequestPost({ request, env }) {
   if (invalido) return responder({ erro: invalido }, 400);
   const sal = novoToken().slice(0, 32);
   try {
-    await env.DB.prepare("UPDATE entrevistadores SET usuario = ?, senha_hash = ?, senha_sal = ? WHERE id = ? AND usuario IS NULL")
+    const resultado = await env.DB.prepare("UPDATE entrevistadores SET usuario = ?, senha_hash = ?, senha_sal = ? WHERE id = ? AND usuario IS NULL")
       .bind(usuario, await hashDaSenha(corpo.senha, sal), sal, conta.id).run();
+    if (resultado.meta.changes === 0) return responder({ erro: "Esta conta já tem usuário." }, 409);
   } catch (erro) {
     if (/UNIQUE/i.test(String(erro?.message))) return responder({ erro: "Este usuário já existe. Escolha outro." }, 409);
     throw erro;
