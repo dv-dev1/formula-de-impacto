@@ -285,9 +285,6 @@ export default function Inicio() {
               })}
             </ul>
             <div style={{ display: "grid", gap: 12 }}>
-              <Link href="/consolidado/" className="botao secundario">
-                Ver consolidado
-              </Link>
               <button type="button" className="botao secundario" onClick={() => exportar()} disabled={exportando}>
                 <Icone nome="baixar" />
                 {exportando ? "Preparando…" : "Exportar tudo (ZIP)"}
@@ -305,6 +302,7 @@ export default function Inicio() {
             </div>
           </>
         )}
+        <Link href="/consolidado/" className="botao secundario" style={{ marginTop: 12 }}>Ver consolidado</Link>
         <Link href="/painel/" className="botao secundario" style={{ marginTop: 12 }}>Painel</Link>
         <Link href="/aparelho/" className="discreto alvo-toque">Aparelho e versão</Link>
         </main>

@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import Icone from "@/components/Icone";
 import Topo from "@/components/Topo";
 import banco from "@/data/perguntas.json";
 import { listarEntrevistas } from "@/lib/db.mjs";
-import { garantirIdentidade } from "@/lib/enviar.mjs";
-import { resumoDoPainel } from "@/lib/painel.mjs";
+import { buscarDoBanco, garantirIdentidade } from "@/lib/enviar.mjs";
+import { minhasEntrevistas, resumoDoPainel } from "@/lib/painel.mjs";
 import { registrarErro } from "@/lib/registro.mjs";
 import { daConta, pendentesDeEnvio } from "@/lib/sincronizar.mjs";
 
@@ -78,6 +79,8 @@ function Resumo({ resumo }) {
 export default function Painel() {
   const [conta, setConta] = useState(null);
   const [locais, setLocais] = useState([]);
+  const [doBanco, setDoBanco] = useState([]);
+  const [hoje, setHoje] = useState("");
   const [equipe, setEquipe] = useState(null);
   const [selecionado, setSelecionado] = useState("");
   const [ocupado, setOcupado] = useState(true);
@@ -85,6 +88,7 @@ export default function Painel() {
   const [semSinal, setSemSinal] = useState(false);
 
   useEffect(() => {
+    setHoje(new Date().toLocaleDateString("pt-BR"));
     let vivo = true;
     let carga = 0;
     const carregar = () => {
@@ -102,17 +106,11 @@ export default function Painel() {
       }).finally(() => {
         if (vivo && carga === atual) setOcupado(false);
       });
-      if (!identidade?.id || !identidade.segredo || navigator.onLine === false) {
-        setEquipe(null);
-        return;
-      }
-      fetch("/api/painel", { headers: { authorization: `Bearer ${identidade.id}.${identidade.segredo}` } })
-        .then((r) => r.ok ? r.json() : null)
-        .then((dados) => {
-          if (vivo && carga === atual) setEquipe(dados?.papel === "coordenador" ? dados : null);
-        }).catch(() => {
-          if (vivo && carga === atual) setEquipe(null);
-        });
+      buscarDoBanco().then((dados) => {
+        if (!vivo || carga !== atual) return;
+        setDoBanco(dados?.entrevistas ?? []);
+        setEquipe(dados?.papel === "coordenador" ? dados : null);
+      });
     };
     const eventos = ["sincronizado", "transcrito", "recuperado", "online", "offline"];
     carregar();
@@ -123,7 +121,8 @@ export default function Painel() {
     };
   }, []);
 
-  const meuResumo = useMemo(() => resumoDoPainel(banco, locais), [locais]);
+  const meus = useMemo(() => conta ? minhasEntrevistas(conta, locais, doBanco) : [], [conta, locais, doBanco]);
+  const meuResumo = useMemo(() => resumoDoPainel(banco, meus), [meus]);
   const recorte = useMemo(() => equipe?.entrevistas.filter((e) => !selecionado || e.entrevistadorId === selecionado) ?? [], [equipe, selecionado]);
   const resumoEquipe = useMemo(() => resumoDoPainel(banco, recorte), [recorte]);
   const enviados = locais.length - pendentesDeEnvio(locais).length;
@@ -133,20 +132,21 @@ export default function Painel() {
       <Topo titulo="Painel" voltar="/" />
       <div className="folha">
         <main className="conteudo consolidado painel">
+          <header className="cabecalho-territorio"><p>Gerado em {hoje}</p></header>
           {ocupado && <p className="discreto">Lendo entrevistas…</p>}
           {falha && <p className="aviso">{falha}</p>}
-          {semSinal && <p className="discreto">Sem sinal: o painel mostra só este tablet.</p>}
+          {semSinal && <p className="discreto">Sem sinal: o painel mostra só este aparelho.</p>}
           {!ocupado && !falha && (
             <section className="resumo-painel" aria-label="Meu painel">
               <h1>Painel de {conta?.nome || "entrevistador"}</h1>
-              {locais.length ? <Resumo resumo={meuResumo} /> : <p>Nenhuma entrevista sua neste tablet ainda.</p>}
-              <p className="discreto">Enviadas ao banco: {enviados} de {locais.length}</p>
+              {meus.length ? <Resumo resumo={meuResumo} /> : <p>Nenhuma entrevista sua ainda.</p>}
+              <p className="discreto">Deste aparelho, enviadas ao banco: {enviados} de {locais.length}</p>
             </section>
           )}
           {equipe && (
             <section className="resumo-painel" aria-label="Equipe">
-              <h2 className="secao">Equipe</h2>
-              <div className="filtros-territorio">
+              <h2 className="secao">Equipe{selecionado ? ` — ${equipe.entrevistadores.find((e) => e.id === selecionado)?.nome ?? ""}` : ""}</h2>
+              <div className="filtros-territorio nao-imprime">
                 <label>Entrevistador
                   <select value={selecionado} onChange={(e) => setSelecionado(e.target.value)}>
                     <option value="">Equipe inteira</option>
@@ -171,6 +171,9 @@ export default function Painel() {
             </section>
           )}
         </main>
+      </div>
+      <div className="rodape nao-imprime">
+        <button type="button" className="botao" onClick={() => window.print()}><Icone nome="imprimir" />Salvar em PDF</button>
       </div>
     </>
   );

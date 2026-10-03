@@ -678,6 +678,11 @@ td.n {
     display: block;
   }
 
+  .painel .cartao,
+  .painel .numeros-painel {
+    break-inside: avoid;
+  }
+
   .consolidado table {
     break-inside: avoid;
   }

@@ -6,6 +6,7 @@ import Icone from "@/components/Icone";
 import Topo from "@/components/Topo";
 import banco from "@/data/perguntas.json";
 import { esquecerImportadas, listarEntrevistas, listarImportadas, salvarImportadas } from "@/lib/db.mjs";
+import { buscarDoBanco } from "@/lib/enviar.mjs";
 import { baixar, consolidar, juntarEntrevistas, lerExportacao } from "@/lib/exportar.mjs";
 import { registrarErro } from "@/lib/registro.mjs";
 import { CATEGORIAS, FAIXAS, GENEROS, descreverPerfil, rotuloCategoria } from "@/lib/rotulos.mjs";
@@ -21,6 +22,7 @@ const mostrarMedia = (media) => media === null ? "—" : media.toLocaleString("p
 
 export default function Consolidado() {
   const [locais, setLocais] = useState([]);
+  const [doBanco, setDoBanco] = useState([]);
   const [importadas, setImportadas] = useState([]);
   const [filtro, setFiltro] = useState({ categoria: "", faixa: "", genero: "", comunidade: null, entrevistador: "", desde: "", ate: "" });
   const [falha, setFalha] = useState("");
@@ -39,9 +41,10 @@ export default function Consolidado() {
         setFalha("Não consegui ler as entrevistas do aparelho. Reabra esta tela para tentar novamente.");
       })
       .finally(() => setOcupado(false));
+    buscarDoBanco().then((dados) => setDoBanco(dados?.entrevistas ?? []));
   }, []);
 
-  const entrevistas = useMemo(() => juntarEntrevistas(locais, importadas), [locais, importadas]);
+  const entrevistas = useMemo(() => juntarEntrevistas([...locais, ...doBanco], importadas), [locais, doBanco, importadas]);
   const comunidades = useMemo(() => cobertura(entrevistas).comunidades, [entrevistas]);
   const entrevistadores = useMemo(() => [...new Set(entrevistas.map((e) => e.entrevistador).filter(Boolean))], [entrevistas]);
   const recorte = useMemo(() => filtrar(entrevistas, filtro), [entrevistas, filtro]);
