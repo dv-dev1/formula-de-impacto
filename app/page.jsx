@@ -13,6 +13,7 @@ import { baixar, entrevistasDesde, montarZip } from "@/lib/exportar.mjs";
 import { montarFormulario, progresso } from "@/lib/montar-formulario.mjs";
 import { ULTIMA_EXPORTACAO, infoDoAparelho, registrarErro } from "@/lib/registro.mjs";
 import { CARGOS, CATEGORIAS, FAIXAS, GENEROS, descreverPerfil } from "@/lib/rotulos.mjs";
+import { daConta } from "@/lib/sincronizar.mjs";
 import { pendentes } from "@/lib/transcrever.mjs";
 
 const lerLocal = (chave) => {
@@ -60,7 +61,10 @@ export default function Inicio() {
 
   useEffect(() => {
     const atualizar = () => {
-      listarEntrevistas().then(setEntrevistas);
+      listarEntrevistas().then((lista) => {
+        const conta = garantirIdentidade();
+        setEntrevistas(lista.filter((e) => conta && daConta(e, conta)));
+      });
       setFila(pendentes());
     };
     atualizar();
@@ -117,7 +121,8 @@ export default function Inicio() {
     try {
       await apagarEntrevista(id);
       anotarApagada(id);
-      setEntrevistas(await listarEntrevistas());
+      const conta = garantirIdentidade();
+      setEntrevistas((await listarEntrevistas()).filter((e) => conta && daConta(e, conta)));
     } catch {
       setFalha("Não consegui apagar agora. Tente de novo.");
     }
@@ -131,7 +136,9 @@ export default function Inicio() {
     try {
       // Antes do ZIP: o que a fila gravar durante a montagem não está nele e tem que contar.
       const agora = new Date().toISOString();
-      const { blob, total } = await montarZip(banco, { desde, aparelho: await infoDoAparelho() });
+      const conta = garantirIdentidade();
+      const entrevistas = (await listarEntrevistas()).filter((e) => conta && daConta(e, conta));
+      const { blob, total } = await montarZip(banco, { entrevistas, desde, aparelho: await infoDoAparelho() });
       const nome = `entrevistas-${agora.slice(0, 10)}-${total}.zip`;
       baixar(blob, nome);
       setArquivoZip(new File([blob], nome, { type: "application/zip" }));

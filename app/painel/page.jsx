@@ -6,7 +6,7 @@ import Icone from "@/components/Icone";
 import Topo from "@/components/Topo";
 import banco from "@/data/perguntas.json";
 import { listarEntrevistas } from "@/lib/db.mjs";
-import { buscarDoBanco, garantirIdentidade } from "@/lib/enviar.mjs";
+import { buscarDoBanco, garantirIdentidade, lerApagadas } from "@/lib/enviar.mjs";
 import { minhasEntrevistas, resumoDoPainel } from "@/lib/painel.mjs";
 import { registrarErro } from "@/lib/registro.mjs";
 import { daConta, pendentesDeEnvio } from "@/lib/sincronizar.mjs";
@@ -108,6 +108,7 @@ export default function Painel() {
       });
       buscarDoBanco().then((dados) => {
         if (!vivo || carga !== atual) return;
+        if (!dados && navigator.onLine !== false) return;
         setDoBanco(dados?.entrevistas ?? []);
         setEquipe(dados?.papel === "coordenador" ? dados : null);
       });
@@ -121,7 +122,7 @@ export default function Painel() {
     };
   }, []);
 
-  const meus = useMemo(() => conta ? minhasEntrevistas(conta, locais, doBanco) : [], [conta, locais, doBanco]);
+  const meus = useMemo(() => conta ? minhasEntrevistas(conta, locais, doBanco, lerApagadas()) : [], [conta, locais, doBanco]);
   const meuResumo = useMemo(() => resumoDoPainel(banco, meus), [meus]);
   const recorte = useMemo(() => equipe?.entrevistas.filter((e) => !selecionado || e.entrevistadorId === selecionado) ?? [], [equipe, selecionado]);
   const resumoEquipe = useMemo(() => resumoDoPainel(banco, recorte), [recorte]);

@@ -61,6 +61,26 @@ const pedir = (handler, env, rota, corpo, headers = {}) => handler({
 const LOGIN = { nome: "Carla", usuario: "carla", senha: "senha-123" };
 const tentar = (env, senha) => pedir(entrar, env, "/api/entrar", { usuario: "carla", senha });
 
+test("tablet cadastrado depois da 0002 recupera sessão pelo segredo nas duas APIs", async (t) => {
+  const hash = await hashDoSegredo(A.segredo);
+  for (const primeira of ["sincronizar", "painel"]) {
+    const env = bancoFalso(t);
+    env.sqlite.prepare("INSERT INTO entrevistadores (id, nome, segredo_hash, criado_em) VALUES (?, ?, ?, ?)")
+      .run(A.id, A.nome, hash, "2026-10-03T12:00:00Z");
+    const errada = { ...A, segredo: B.segredo };
+    assert.equal((await postar(env, errada)).status, 401);
+    assert.equal((await ler(env, errada)).status, 401);
+    assert.equal(env.sqlite.prepare("SELECT count(*) AS total FROM sessoes").get().total, 0);
+    assert.equal((await (primeira === "sincronizar" ? postar(env, A, [entrevista("a1")]) : ler(env))).status, 200);
+    const sessao = env.sqlite.prepare("SELECT * FROM sessoes WHERE token_hash = ?").get(hash);
+    assert.equal(sessao?.entrevistador_id, A.id);
+    assert.ok(sessao.criada_em);
+    assert.equal((await postar(env, A, [entrevista("a1")])).status, 200);
+    assert.equal((await ler(env)).status, 200);
+    assert.equal(env.sqlite.prepare("SELECT count(*) AS total FROM sessoes").get().total, 1);
+  }
+});
+
 test("vincular grava usuário e senha numa conta antiga e depois entrar funciona", async (t) => {
   const env = bancoFalso(t);
   await postar(env, A, [entrevista("a1")]);

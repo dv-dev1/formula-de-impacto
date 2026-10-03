@@ -58,6 +58,11 @@ export default function Tranca({ children }) {
 
   async function primeiroAcesso(evento) {
     evento.preventDefault();
+    const conta = ler();
+    if (conta) {
+      setAcesso(conta);
+      return;
+    }
     if (criar && !nome.trim()) return setErro("Diga seu nome — ele vai junto de cada entrevista.");
     const invalido = erroDeLogin(normalizarUsuario(usuario), senha);
     if (invalido) return setErro(invalido);

@@ -183,3 +183,23 @@ test("Conta recusa pendências e sair liberado permite primeiro acesso novamente
     else assert.ok(tela("components/Tranca.jsx", "Tranca", { conta: JSON.parse(app.armazem.get(CHAVE) || "null") }).campo("usuario"));
   }
 });
+
+test("primeiroAcesso relê conta criada por outra aba antes de validar ou acessar rede", async () => {
+  const app = tela("components/Tranca.jsx", "Tranca");
+  app.armazem.set(CHAVE, JSON.stringify(ANA));
+  await app.enviar();
+  assert.equal(app.campo("usuario"), undefined);
+  assert.match(texto(app.arvore), /Olá, Ana/);
+  assert.deepEqual(app.pedidos, []);
+  assert.deepEqual(JSON.parse(app.armazem.get(CHAVE)), ANA);
+  assert.equal(app.sessao.has("acesso-liberado"), false);
+});
+
+test("Conta mostra erro ao sair sem navegar nem perder acesso", async () => {
+  const app = tela("app/aparelho/page.jsx", "Conta", { conta: ANA });
+  app.contexto.localStorage.removeItem = () => { throw new Error("Armazenamento bloqueado."); };
+  await app.botao("Sair deste aparelho").props.onClick(); app.render();
+  assert.equal(app.aviso(), "Armazenamento bloqueado.");
+  assert.equal(app.contexto.location.href, "/aparelho/");
+  assert.deepEqual(JSON.parse(app.armazem.get(CHAVE)), ANA);
+});

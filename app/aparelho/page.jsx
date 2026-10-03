@@ -40,9 +40,13 @@ function Conta() {
   }
 
   async function sairDaqui() {
-    const recusa = await sair();
-    if (recusa) return setAviso(recusa);
-    location.href = "/";
+    try {
+      const recusa = await sair();
+      if (recusa) return setAviso(recusa);
+      location.href = "/";
+    } catch (erro) {
+      setAviso(erro.message);
+    }
   }
 
   return (

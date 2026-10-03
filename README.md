@@ -110,6 +110,23 @@ isolamento. Para exercitar o D1 local (com `wrangler pages dev`) ou a prévia, h
 SINCRONIZAR=1 BASE_URL=http://localhost:8788 CDP_PORT=9223 npm run validar
 ```
 
+## Login e senhas
+
+A migração `0002_login.sql` precisa rodar antes do código novo. O `npm run deploy` já aplica
+as migrações antes de publicar o código.
+
+Para redefinir a senha de alguém, escolha uma senha e um sal novos. Gere o hash:
+
+```bash
+node -e "const c=require('crypto');console.log(c.pbkdf2Sync(process.argv[1],process.argv[2],100000,32,'sha256').toString('hex'))" <senha-nova> <sal-novo>
+```
+
+Use o hash gerado e o mesmo sal na atualização:
+
+```bash
+npx wrangler d1 execute formula-de-impacto --remote --command "UPDATE entrevistadores SET senha_hash='<hash>', senha_sal='<sal-novo>', falhas=0, bloqueado_ate=NULL WHERE usuario='<usuario>'"
+```
+
 ## Transcrição
 
 O áudio é gravado sempre e fica salvo no aparelho. A transcrição roda no servidor

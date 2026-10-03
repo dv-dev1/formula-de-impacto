@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
+import { createHash, pbkdf2Sync } from "node:crypto";
 import test from "node:test";
 
 import { daConta, entrevistaValida, erroDeLogin, hashDaSenha, hashDoSegredo, lerCredencial, lerJson, normalizarUsuario, pendentesDeEnvio, versaoDe } from "../lib/sincronizar.mjs";
@@ -54,6 +54,24 @@ test("hash do segredo corresponde a SHA-256 em hexadecimal", async () => {
 test("hashDaSenha é PBKDF2-SHA256 com 100 mil iterações", async () => {
   assert.equal(await hashDaSenha("senha-123", "sal-fixo"), "bc03202770dd9f1517b38af0aeed5b8a9d8a02d4c154b6d6648e48264bbb4000");
   assert.notEqual(await hashDaSenha("senha-123", "outro-sal"), await hashDaSenha("senha-123", "sal-fixo"));
+});
+
+test("redefinição com node:crypto produz o mesmo hashDaSenha", async () => {
+  const senha = "senha-nova-á";
+  const sal = "sal-novo-ç";
+  assert.equal(await hashDaSenha(senha, sal), pbkdf2Sync(senha, sal, 100000, 32, "sha256").toString("hex"));
+});
+
+test("filtro daConta separa contas no tablet sem descartar legado da conta atual", () => {
+  const lista = [
+    { id: "ana", entrevistadorId: "ana", entrevistador: "Bia" },
+    { id: "bia", entrevistadorId: "bia", entrevistador: "Ana" },
+    { id: "legado-ana", entrevistador: "Ana" },
+    { id: "legado-bia", entrevistador: "Bia" },
+  ];
+  assert.deepEqual(lista.filter((e) => daConta(e, { id: "ana", nome: "Ana" })).map((e) => e.id), ["ana", "legado-ana"]);
+  assert.deepEqual(lista.filter((e) => daConta(e, { id: "bia", nome: "Bia" })).map((e) => e.id), ["bia", "legado-bia"]);
+  assert.equal(lista.length, 4);
 });
 
 test("usuário normalizado e regras de login", () => {

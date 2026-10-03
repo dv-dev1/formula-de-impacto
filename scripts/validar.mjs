@@ -750,10 +750,13 @@ await cenario("22-painel", async () => {
     checar("22-painel: cabe sem rolagem horizontal em 360 px", await js(`return document.documentElement.scrollWidth <= innerWidth;`));
     checar("22-painel: tem o botão Salvar em PDF", await js(`return [...document.querySelectorAll("button")].some((b) => b.textContent.includes("Salvar em PDF"));`));
     await cdp("Emulation.setEmulatedMedia", { media: "print" });
-    const cortaveis = await js(`return [...document.querySelectorAll(".painel .cartao, .painel .numeros-painel")].filter((el) => getComputedStyle(el).breakInside !== "avoid").length;`);
-    await cdp("Emulation.setEmulatedMedia", { media: "" });
-    checar("22-painel: na impressão nenhum cartão do painel pode ser cortado", cortaveis === 0, `${cortaveis} cortáveis`);
+    const impressao = await js(`
+      const cartoes = [...document.querySelectorAll(".painel .cartao, .painel .numeros-painel")];
+      return { total: cartoes.length, cortaveis: cartoes.filter((el) => getComputedStyle(el).breakInside !== "avoid").length };
+    `);
+    checar("22-painel: na impressão nenhum cartão do painel pode ser cortado", impressao.total > 0 && impressao.cortaveis === 0, `${impressao.total} cartões, ${impressao.cortaveis} cortáveis`);
   } finally {
+    await cdp("Emulation.setEmulatedMedia", { media: "" });
     await cdp("Emulation.setDeviceMetricsOverride", { width: 800, height: 1280, deviceScaleFactor: 1, mobile: true });
   }
 });

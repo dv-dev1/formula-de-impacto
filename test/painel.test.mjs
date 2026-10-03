@@ -90,3 +90,10 @@ test("minhasEntrevistas junta aparelho e banco só da conta, com a versão mais 
   assert.deepEqual(minhas.map((e) => e.id).sort(), ["a1", "a2"]);
   assert.equal(minhas.find((e) => e.id === "a1").respostas.nome, "nova");
 });
+
+test("minhasEntrevistas exclui do banco entrevista com baixa pendente no aparelho", () => {
+  const conta = { id: "ana", nome: "Ana" };
+  const doBanco = ["apagada", "viva"].map((id) => entrevista(id, "ater", {}, { entrevistadorId: "ana" }));
+  assert.deepEqual(minhasEntrevistas(conta, [], doBanco, ["apagada"]).map((e) => e.id), ["viva"]);
+  assert.equal(doBanco.length, 2);
+});

@@ -24,7 +24,7 @@ function aparelho(fetch, AbortSignal = { timeout: () => undefined }, conta = { i
   };
   // A VM troca só as dependências do navegador; o envio executa o código do módulo.
   const modulo = runInNewContext(`${codigo}\n({ sincronizar, acessar, vincular, sair, buscarDoBanco, embaralhar });`, contexto);
-  return { ...modulo, entrevista, erros, armazem };
+  return { ...modulo, entrevista, erros, armazem, contexto };
 }
 
 const lerConta = (app) => JSON.parse(app.armazem.get("acesso-formula-impacto") ?? "null");
@@ -153,4 +153,16 @@ test("sair recusa apagada pendente mesmo com todas as entrevistas enviadas", asy
 test("embaralhar mantém o hash SHA-256 das contas antigas", async () => {
   const app = aparelho(async () => resposta());
   assert.equal(await app.embaralhar("1234", "sal-antigo"), "bf730debdec8b8afae7baa74e4068fe488f1df6b3a005d154c48eb0b3dcde05e");
+});
+
+test("acessar e vincular explicam falha ao guardar acesso sem substituir conta anterior", async () => {
+  for (const operacao of ["acessar", "vincular"]) {
+    const app = aparelho(async (url) => url === "/api/sincronizar" ? resposta() : Response.json({ ...ANA, token: ANA.segredo }));
+    await app.sincronizar();
+    const antes = app.armazem.get("acesso-formula-impacto");
+    app.contexto.localStorage.setItem = () => { throw new Error("QuotaExceededError"); };
+    await assert.rejects(operacao === "acessar" ? app.acessar("/api/entrar", { usuario: "ana", senha: "senha-123" }) : app.vincular("ana", "senha-123"),
+      { message: "Não consegui guardar o acesso neste aparelho. Libere o armazenamento do navegador e tente de novo." });
+    assert.equal(app.armazem.get("acesso-formula-impacto"), antes);
+  }
 });

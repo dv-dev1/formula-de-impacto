@@ -6,10 +6,11 @@ import Icone from "@/components/Icone";
 import Topo from "@/components/Topo";
 import banco from "@/data/perguntas.json";
 import { esquecerImportadas, listarEntrevistas, listarImportadas, salvarImportadas } from "@/lib/db.mjs";
-import { buscarDoBanco } from "@/lib/enviar.mjs";
+import { buscarDoBanco, garantirIdentidade, lerApagadas } from "@/lib/enviar.mjs";
 import { baixar, consolidar, juntarEntrevistas, lerExportacao } from "@/lib/exportar.mjs";
 import { registrarErro } from "@/lib/registro.mjs";
 import { CATEGORIAS, FAIXAS, GENEROS, descreverPerfil, rotuloCategoria } from "@/lib/rotulos.mjs";
+import { daConta } from "@/lib/sincronizar.mjs";
 import { cobertura, csvConsolidado, filtrar, mapaDeVisao, respostasAbertas } from "@/lib/territorio.mjs";
 
 const EIXOS = [
@@ -33,7 +34,8 @@ export default function Consolidado() {
     setHoje(new Date().toLocaleDateString("pt-BR"));
     Promise.all([listarEntrevistas(), listarImportadas()])
       .then(([doAparelho, deFora]) => {
-        setLocais(doAparelho);
+        const conta = garantirIdentidade();
+        setLocais(doAparelho.filter((e) => conta && daConta(e, conta)));
         setImportadas(deFora);
       })
       .catch((erro) => {
@@ -41,7 +43,10 @@ export default function Consolidado() {
         setFalha("Não consegui ler as entrevistas do aparelho. Reabra esta tela para tentar novamente.");
       })
       .finally(() => setOcupado(false));
-    buscarDoBanco().then((dados) => setDoBanco(dados?.entrevistas ?? []));
+    buscarDoBanco().then((dados) => {
+      const apagadas = lerApagadas();
+      setDoBanco((dados?.entrevistas ?? []).filter((e) => !apagadas.includes(e.id)));
+    });
   }, []);
 
   const entrevistas = useMemo(() => juntarEntrevistas([...locais, ...doBanco], importadas), [locais, doBanco, importadas]);

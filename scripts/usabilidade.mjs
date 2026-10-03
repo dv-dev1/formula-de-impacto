@@ -187,7 +187,7 @@ for (const device of DEVICES) {
 
   registrar(device, "tranca-entrar", await js(AUDITORIA));
   await foto(`${device.nome}-0-tranca-entrar`);
-  await clicar("Criar conta nova");
+  if (!(await clicar("Criar conta nova"))) problemas.push({ device: device.nome, tela: "tranca-entrar", tipo: "botao-sumido", texto: "Criar conta nova" });
   await espera(300);
   registrar(device, "tranca-criar", await js(AUDITORIA));
   await foto(`${device.nome}-0-tranca-criar`);
