@@ -54,6 +54,7 @@ export default function Inicio() {
   const [paraApagar, setParaApagar] = useState(null);
   const [falha, setFalha] = useState("");
   const [ultimaExportacao, setUltimaExportacao] = useState(null);
+  const [contaAntiga, setContaAntiga] = useState(false);
   const [fila, setFila] = useState([]);
   const [persistido, setPersistido] = useState(true);
 
@@ -67,6 +68,8 @@ export default function Inicio() {
     window.addEventListener("recuperado", atualizar);
     window.addEventListener("sincronizado", atualizar);
     setUltimaExportacao(lerLocal(ULTIMA_EXPORTACAO));
+    const conta = garantirIdentidade();
+    setContaAntiga(Boolean(conta && !conta.usuario));
     // ponytail: persisted() no Safari iOS a confirmar; o aviso some se ele sempre disser false sem PWA.
     navigator.storage?.persisted?.().then(setPersistido, () => {});
     for (const rota of ["/entrevista/", "/relatorio/", "/consolidado/", "/painel/", "/aparelho/"]) router.prefetch(rota);
@@ -175,6 +178,12 @@ export default function Inicio() {
 
       <div className="folha">
         <main className="conteudo">
+        {contaAntiga && (
+          <div className="cartao">
+            <p>Crie usuário e senha para ver suas entrevistas em outro aparelho.</p>
+            <Link href="/aparelho/" className="botao secundario">Criar usuário e senha</Link>
+          </div>
+        )}
         <Escolha
           titulo="Quem você vai entrevistar?"
           itens={CATEGORIAS}

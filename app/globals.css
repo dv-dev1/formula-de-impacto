@@ -263,6 +263,7 @@ h2.secao {
 
 input[type="text"],
 input[type="number"],
+input[type="password"],
 textarea {
   width: 100%;
   min-height: var(--alvo);
