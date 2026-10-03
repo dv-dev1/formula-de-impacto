@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { resumoDoPainel } from "../lib/painel.mjs";
+import { minhasEntrevistas, resumoDoPainel } from "../lib/painel.mjs";
 import { CATEGORIAS } from "../lib/rotulos.mjs";
 
 process.env.TZ = "America/Sao_Paulo";
@@ -75,4 +75,18 @@ test("por dia agrupa pelo dia local e ordena cronologicamente", () => {
 test("faltam ouvir lista os rótulos das categorias com zero na ordem do banco", () => {
   assert.deepEqual(resumoDoPainel(banco, [entrevista("a")]).faltamOuvir, CATEGORIAS.slice(1).map((c) => c.rotulo));
   assert.deepEqual(resumoDoPainel(banco, []).faltamOuvir, CATEGORIAS.map((c) => c.rotulo));
+});
+
+test("minhasEntrevistas junta aparelho e banco só da conta, com a versão mais nova", () => {
+  const conta = { id: "ana", nome: "Ana" };
+  const base = { perfil: {}, respostas: {}, iniciadaEm: "2026-10-01T12:00:00Z" };
+  const locais = [{ ...base, id: "a1", entrevistadorId: "ana", respostas: { nome: "velha" } }, { ...base, id: "x1", entrevistadorId: "bia" }];
+  const doBanco = [
+    { ...base, id: "a1", entrevistadorId: "ana", atualizadaEm: "2026-10-02T12:00:00Z", respostas: { nome: "nova" } },
+    { ...base, id: "a2", entrevistadorId: "ana" },
+    { ...base, id: "b1", entrevistadorId: "bia" },
+  ];
+  const minhas = minhasEntrevistas(conta, locais, doBanco);
+  assert.deepEqual(minhas.map((e) => e.id).sort(), ["a1", "a2"]);
+  assert.equal(minhas.find((e) => e.id === "a1").respostas.nome, "nova");
 });
