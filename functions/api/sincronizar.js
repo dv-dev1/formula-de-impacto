@@ -1,10 +1,4 @@
-import { entrevistaValida, hashDoSegredo, lerCredencial, versaoDe } from "../../lib/sincronizar.mjs";
-
-const responder = (dados, status = 200) =>
-  new Response(JSON.stringify(dados), {
-    status,
-    headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
-  });
+import { autenticar, entrevistaValida, hashDoSegredo, lerCredencial, responder, versaoDe } from "../../lib/sincronizar.mjs";
 
 export async function onRequestPost({ request, env }) {
   // ponytail: cadastro aberto como na Tranca; o limite por requisição contém o abuso, mas não o impede.
@@ -28,16 +22,18 @@ export async function onRequestPost({ request, env }) {
     return responder({ erro: "Itens demais." }, 413);
   }
   const { id, segredo } = credencial;
-  const hash = await hashDoSegredo(segredo);
-  const entrevistador = await env.DB.prepare("SELECT * FROM entrevistadores WHERE id = ?").bind(id).first();
   const agora = new Date().toISOString();
-  if (!entrevistador) {
+  if (!(await autenticar(env.DB, request.headers.get("authorization")))) {
+    if (await env.DB.prepare("SELECT 1 FROM entrevistadores WHERE id = ?").bind(id).first()) {
+      return responder({ erro: "Credencial inválida." }, 401);
+    }
     const nome = typeof corpo.nome === "string" ? corpo.nome.trim() : "";
     if (!nome || nome.length > 80) return responder({ erro: "Informe um nome de até 80 caracteres." }, 400);
-    await env.DB.prepare("INSERT INTO entrevistadores (id, nome, segredo_hash, criado_em) VALUES (?, ?, ?, ?)")
-      .bind(id, nome, hash, agora).run();
-  } else if (entrevistador.segredo_hash !== hash) {
-    return responder({ erro: "Credencial inválida." }, 401);
+    const hash = await hashDoSegredo(segredo);
+    await env.DB.batch([
+      env.DB.prepare("INSERT INTO entrevistadores (id, nome, segredo_hash, criado_em) VALUES (?, ?, ?, ?)").bind(id, nome, hash, agora),
+      env.DB.prepare("INSERT INTO sessoes (token_hash, entrevistador_id, criada_em) VALUES (?, ?, ?)").bind(hash, id, agora),
+    ]);
   }
   const entrevistas = corpo.entrevistas.filter(entrevistaValida);
   const tarefas = entrevistas.map((e) => {

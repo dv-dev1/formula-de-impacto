@@ -7,9 +7,12 @@ import { onRequestGet } from "../functions/api/painel.js";
 import { onRequestPost } from "../functions/api/sincronizar.js";
 import { hashDoSegredo } from "../lib/sincronizar.mjs";
 
-function bancoFalso(t) {
+function bancoFalso(t, entreMigracoes = () => {}) {
   const sqlite = new DatabaseSync(":memory:");
-  sqlite.exec(readFileSync(new URL("../migrations/0001_inicial.sql", import.meta.url), "utf8"));
+  const migracao = (arquivo) => readFileSync(new URL(`../migrations/${arquivo}`, import.meta.url), "utf8");
+  sqlite.exec(migracao("0001_inicial.sql"));
+  entreMigracoes(sqlite);
+  sqlite.exec(migracao("0002_login.sql"));
   t.after(() => sqlite.close());
   const DB = {
     prepare(sql) {
@@ -160,4 +163,25 @@ test("servidor recusa banco ausente, credencial inválida, JSON, nome e excesso 
   assert.equal((await postar(env, { ...A, nome: "  " })).status, 400);
   assert.equal((await postar(env, { ...A, nome: "a".repeat(81) })).status, 400);
   assert.equal((await enviarTexto(JSON.stringify({ nome: "á".repeat(3 * 1024 * 1024), entrevistas: [], apagadas: [] }))).status, 413);
+});
+
+test("segredo de tablet cadastrado antes da 0002 continua valendo", async (t) => {
+  const hash = await hashDoSegredo(A.segredo);
+  const env = bancoFalso(t, (sqlite) => sqlite.prepare("INSERT INTO entrevistadores (id, nome, segredo_hash, criado_em) VALUES (?, ?, ?, ?)")
+    .run(A.id, A.nome, hash, "2026-10-01T00:00:00Z"));
+  assert.equal((await ler(env)).status, 200);
+  assert.deepEqual(await (await postar(env, A, [entrevista("a1")])).json(), { ids: ["a1"] });
+  assert.deepEqual(env.sqlite.prepare("SELECT token_hash, entrevistador_id FROM sessoes").all().map((s) => ({ ...s })),
+    [{ token_hash: hash, entrevistador_id: A.id }]);
+  assert.equal((await ler(env, { ...A, segredo: B.segredo })).status, 401);
+});
+
+test("cadastro implícito abre a sessão e o token não vale com o id de outra conta", async (t) => {
+  const env = bancoFalso(t);
+  await postar(env, A);
+  await postar(env, B);
+  const sessao = env.sqlite.prepare("SELECT entrevistador_id FROM sessoes WHERE token_hash = ?").get(await hashDoSegredo(A.segredo));
+  assert.equal(sessao?.entrevistador_id, A.id);
+  assert.equal((await ler(env, { ...B, segredo: A.segredo })).status, 401);
+  assert.equal((await postar(env, { ...B, segredo: A.segredo })).status, 401);
 });
