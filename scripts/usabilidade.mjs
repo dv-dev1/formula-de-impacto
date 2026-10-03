@@ -150,7 +150,7 @@ const AUDITORIA = `
   return achados;
 `;
 
-const { clicar, preencher, passarPelaTranca, limparAparelho } = comandos(js);
+const { clicar, preencher, passarPelaTranca, limparAparelho, semearConta } = comandos(js);
 
 async function foto(nome) {
   const { data } = await cdp("Page.captureScreenshot", { format: "png", captureBeyondViewport: true });
@@ -166,7 +166,7 @@ mkdirSync(SAIDA, { recursive: true });
 await cdp("Page.enable");
 await cdp("Runtime.enable");
 await cdp("Network.enable");
-await cdp("Network.setBlockedURLs", { urls: ["*/api/sincronizar*", "*/api/painel*"] });
+await cdp("Network.setBlockedURLs", { urls: ["*/api/sincronizar*", "*/api/painel*", "*/api/conta*", "*/api/entrar*"] });
 // A bateria mede o build atual, não o que o service worker guardou de uma rodada anterior.
 await cdp("Network.setBypassServiceWorker", { bypass: true });
 
@@ -185,8 +185,17 @@ for (const device of DEVICES) {
   await cdp("Page.reload");
   await espera(2200);
 
-  registrar(device, "tranca", await js(AUDITORIA));
-  await foto(`${device.nome}-0-tranca`);
+  registrar(device, "tranca-entrar", await js(AUDITORIA));
+  await foto(`${device.nome}-0-tranca-entrar`);
+  await clicar("Criar conta nova");
+  await espera(300);
+  registrar(device, "tranca-criar", await js(AUDITORIA));
+  await foto(`${device.nome}-0-tranca-criar`);
+  await semearConta();
+  await cdp("Page.reload");
+  await espera(2200);
+  registrar(device, "tranca-senha", await js(AUDITORIA));
+  await foto(`${device.nome}-0-tranca-senha`);
   await passarPelaTranca();
 
   registrar(device, "inicio", await js(AUDITORIA));
@@ -246,7 +255,7 @@ for (const p of problemas) {
   porTipo.get(chave).devices.add(p.device);
 }
 
-console.log(`\n${DEVICES.length} aparelhos · 7 telas cada · telas em ${SAIDA}/\n`);
+console.log(`\n${DEVICES.length} aparelhos · 9 telas cada · telas em ${SAIDA}/\n`);
 if (porTipo.size === 0) {
   console.log("nenhum problema de usabilidade encontrado");
 } else {

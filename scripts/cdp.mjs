@@ -78,22 +78,47 @@ export function comandos(js) {
       return true;
     `);
 
-  // Passa pela tranca criando o acesso pela própria tela, não escrevendo no localStorage:
-  // burlar aqui deixaria a tela de entrada sem medição nenhuma.
-  const passarPelaTranca = async (pin = "1234") => {
-    if (!(await js(`return Boolean(document.querySelector("#pin"));`))) return "destrancado";
-    const cadastro = await js(`return Boolean(document.querySelector("#nome"));`);
-    if (cadastro) {
-      await digitarEm("#nome", "Entrevistador de Teste");
-      await digitarEm("#pin", pin);
-      await digitarEm("#confirmacao", pin);
-      await clicar("Criar acesso");
-    } else {
-      await digitarEm("#pin", pin);
-      await clicar("Entrar");
+  const SENHA_TESTE = "senha-teste";
+
+  // Sem servidor não dá para criar conta pela tela; a conta nasce direto no aparelho, no mesmo
+  // formato que o `acessar` de lib/enviar.mjs grava. A tela de login é medida no 25-login.
+  const semearConta = ({ nome = "Entrevistador de Teste", usuario = "teste", senha = SENHA_TESTE } = {}) =>
+    js(`
+      const hex = (bytes) => [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, "0")).join("");
+      const sal = crypto.randomUUID();
+      const resumo = hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(sal + ":" + ${JSON.stringify(senha)})));
+      const conta = { nome: ${JSON.stringify(nome)}, usuario: ${JSON.stringify(usuario)}, sal, resumo, id: crypto.randomUUID(), segredo: hex(crypto.getRandomValues(new Uint8Array(32))), registrada: false };
+      localStorage.setItem("acesso-formula-impacto", JSON.stringify(conta));
+      return true;
+    `);
+
+  const passarPelaTranca = async (senha = SENHA_TESTE) => {
+    if (await js(`return Boolean(document.querySelector("#usuario"));`)) {
+      await semearConta({ senha });
+      // Recarregar dentro do próprio evaluate destrói o contexto antes da resposta voltar.
+      await js(`setTimeout(() => location.reload(), 0); return true;`);
+      await espera(2600);
     }
+    const campo = await js(`return document.querySelector("#senha") ? "#senha" : document.querySelector("#pin") ? "#pin" : "";`);
+    if (!campo) return "destrancado";
+    await digitarEm(campo, senha);
+    await clicar("Entrar");
     await espera(1400);
-    return cadastro ? "acesso criado" : "entrou";
+    return "entrou";
+  };
+
+  const acessarPelaTela = async ({ nome, usuario, senha }) => {
+    const modoCriar = await js(`return Boolean(document.querySelector("#nome"));`);
+    if (Boolean(nome) !== modoCriar) {
+      await clicar(nome ? "Criar conta nova" : "Já tenho conta");
+      await espera(300);
+    }
+    if (nome) await digitarEm("#nome", nome);
+    await digitarEm("#usuario", usuario);
+    await digitarEm("#senha", senha);
+    if (nome) await digitarEm("#confirmacao", senha);
+    await clicar(nome ? "Criar conta" : "Entrar");
+    await espera(3000);
   };
 
   const limparAparelho = async () => {
@@ -118,5 +143,5 @@ export function comandos(js) {
     await js(`localStorage.clear(); sessionStorage.clear(); return true;`);
   };
 
-  return { clicar, digitarEm, preencher, passarPelaTranca, limparAparelho };
+  return { clicar, digitarEm, preencher, passarPelaTranca, limparAparelho, semearConta, acessarPelaTela };
 }

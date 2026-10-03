@@ -16,7 +16,7 @@ if (SINCRONIZAR && new URL(BASE).origin === "https://formula-de-impacto.pages.de
 }
 
 const { cdp, js, fechar } = await conectar(PORTA);
-const { clicar, preencher, passarPelaTranca, limparAparelho } = comandos(js);
+const { clicar, preencher, passarPelaTranca, limparAparelho, semearConta, acessarPelaTela } = comandos(js);
 
 const resultados = [];
 function checar(nome, ok, detalhe = "") {
@@ -90,18 +90,21 @@ await cdp("Page.enable");
 await cdp("Runtime.enable");
 await cdp("Network.enable");
 if (!SINCRONIZAR) {
-  await cdp("Network.setBlockedURLs", { urls: ["*/api/sincronizar*", "*/api/painel*"] });
+  await cdp("Network.setBlockedURLs", { urls: ["*/api/sincronizar*", "*/api/painel*", "*/api/conta*", "*/api/entrar*"] });
 }
 await cdp("Emulation.setDeviceMetricsOverride", { width: 800, height: 1280, deviceScaleFactor: 1, mobile: true });
 if (!SINCRONIZAR) {
   await irPara("/");
-  const bloqueou = await js(`
-    try { await fetch("/api/painel"); return false; }
-    catch { return true; }
+  const vazou = await js(`
+    const vazadas = [];
+    for (const rota of ["/api/painel", "/api/sincronizar", "/api/conta", "/api/conta/vincular", "/api/entrar"]) {
+      try { await fetch(rota); vazadas.push(rota); } catch {}
+    }
+    return vazadas;
   `);
-  if (!bloqueou) {
+  if (vazou.length) {
     fechar();
-    throw new Error("O bloqueio das APIs não pegou; bateria abortada para proteger o banco.");
+    throw new Error(`O bloqueio das APIs não pegou (${vazou.join(", ")}); bateria abortada para proteger o banco.`);
   }
 }
 
@@ -112,24 +115,41 @@ await cenario("1-tranca", async () => {
   await limparAparelho();
   await irPara("/");
 
-  checar("1-tranca: aparelho novo pede cadastro", await js(`return Boolean(document.querySelector("#nome"));`));
-  await passarPelaTranca("1234");
-  checar("1-tranca: acesso criado destranca", (await textoDaTela()).includes("Quem você vai entrevistar?"));
+  checar("1-tranca: aparelho novo pede usuário e senha", await js(`return Boolean(document.querySelector("#usuario")) && Boolean(document.querySelector("#senha"));`));
+  if (!SINCRONIZAR) {
+    await acessarPelaTela({ nome: "Sem Rede", usuario: "sem-rede", senha: "senha-sem-rede" });
+    const aviso = await js(`return document.querySelector(".aviso")?.textContent ?? "";`);
+    const semConta = await js(`return localStorage.getItem("acesso-formula-impacto") === null;`);
+    checar("1-tranca: sem servidor, criar conta avisa que falta internet e não grava conta", aviso.includes("Sem internet") && semConta, aviso);
+  }
+  await passarPelaTranca();
+  checar("1-tranca: conta no aparelho destranca", (await textoDaTela()).includes("Quem você vai entrevistar?"));
 
   await js(`sessionStorage.clear(); return true;`);
   await irPara("/");
-  const pedePin = await js(`return Boolean(document.querySelector("#pin")) && !document.querySelector("#nome");`);
-  checar("1-tranca: sessão encerrada volta a pedir PIN, não recadastro", pedePin);
+  const pedeSenha = await js(`return Boolean(document.querySelector("#senha")) && !document.querySelector("#usuario");`);
+  checar("1-tranca: sessão encerrada volta a pedir a senha, não o login", pedeSenha);
 
-  await passarPelaTranca("9999");
-  const barrou = await js(`return Boolean(document.querySelector("#pin"));`);
-  checar("1-tranca: PIN errado não entra", barrou, barrou ? "" : "entrou com 9999");
+  await passarPelaTranca("senha-errada");
+  const barrou = await js(`return Boolean(document.querySelector("#senha"));`);
+  checar("1-tranca: senha errada não entra", barrou, barrou ? "" : "entrou com senha errada");
 
-  await passarPelaTranca("1234");
-  checar("1-tranca: PIN certo entra", (await textoDaTela()).includes("Quem você vai entrevistar?"));
+  await passarPelaTranca();
+  checar("1-tranca: senha certa entra", (await textoDaTela()).includes("Quem você vai entrevistar?"));
 
   await irPara("/");
   checar("1-tranca: sessão aberta sobrevive ao reload", (await textoDaTela()).includes("Quem você vai entrevistar?"));
+
+  await limparAparelho();
+  await semearConta({ usuario: null, senha: "1234" });
+  await irPara("/");
+  checar("1-tranca: conta antiga continua pedindo o código de 4 números", await js(`return Boolean(document.querySelector("#pin"));`));
+  await passarPelaTranca("1234");
+  const inicio = await textoDaTela();
+  checar("1-tranca: conta antiga entra com o código e vê o convite para criar usuário", inicio.includes("Quem você vai entrevistar?") && inicio.includes("Crie usuário e senha"));
+
+  await limparAparelho();
+  await semearConta();
 });
 
 // ---------------------------------------------------------------------------
@@ -138,7 +158,7 @@ const abrirEntrevista = async (perfil) => {
   await irPara("/");
   // Cada cenário roda numa aba nova e a sessão destrancada mora no sessionStorage, que é
   // por aba: sem passar pela tranca aqui, a tela de perfil nem chega a existir.
-  await passarPelaTranca("1234");
+  await passarPelaTranca();
   for (const rotulo of perfil) {
     if (!(await clicar(rotulo))) throw new Error(`botão sumiu: ${rotulo}`);
     await espera(300);
@@ -324,11 +344,11 @@ await cenario("7-service-worker", async () => {
   await irPara("/");
   // Aba nova sem sinal cai na tranca, porque a sessão destrancada vive no sessionStorage.
   // O que se mede aqui é o app ter subido do cache, não ter chegado à tela de perfil.
-  const subiu = await js(`return Boolean(document.querySelector("#pin") || document.querySelector(".conteudo"));`);
+  const subiu = await js(`return Boolean(document.querySelector("#senha") || document.querySelector(".conteudo"));`);
   const tela = await textoDaTela();
   checar("7-service-worker: app sobe do cache sem sinal nenhum", subiu && !tela.includes("ERR_INTERNET"), tela.slice(0, 70).replace(/\n/g, " "));
 
-  await passarPelaTranca("1234");
+  await passarPelaTranca();
   checar("7-service-worker: dá para entrar e abrir a tela de perfil offline", (await textoDaTela()).includes("Quem você vai entrevistar?"));
 
   await irPara("/consolidado/");
@@ -364,7 +384,7 @@ await cenario("8-banco-resiliente", async () => {
   `);
 
   await irPara("/");
-  await passarPelaTranca("1234");
+  await passarPelaTranca();
   const tela = await textoDaTela();
   checar("8-banco-resiliente: app abre depois de perder um store", tela.includes("Quem você vai entrevistar?"), tela.slice(0, 70).replace(/\n/g, " "));
 
@@ -519,7 +539,7 @@ await cenario("13-limite", async () => {
 await cenario("14-sw-precache", async () => {
   await rede(false);
   await irPara("/");
-  await passarPelaTranca("1234");
+  await passarPelaTranca();
   const controla = await ate(() => js(`return Boolean(navigator.serviceWorker?.controller);`), 25);
   checar("14-sw-precache: service worker controla a página", controla);
   if (!controla) throw new Error("service worker não assumiu o controle");
@@ -669,7 +689,7 @@ const guardar = (store, lista) => js(`
 await cenario("18-consolidado", async () => {
   await rede(false);
   await irPara("/");
-  await passarPelaTranca("1234");
+  await passarPelaTranca();
   await cdp("Emulation.setDeviceMetricsOverride", { width: 820, height: 1280, deviceScaleFactor: 1, mobile: true });
   const prefixo = `validacao-consolidado-${Date.now()}`;
   const entrevistas = ["agricultor", "ater"].map((categoria, indice) => ({
@@ -704,7 +724,7 @@ await cenario("22-painel", async () => {
   await irPara("/");
   await limparAparelho();
   await irPara("/");
-  await passarPelaTranca("1234");
+  await passarPelaTranca();
   const conta = await js(`return JSON.parse(localStorage.getItem("acesso-formula-impacto"));`);
   if (!conta?.id) throw new Error("cadastro não criou o ID do entrevistador");
   const prefixo = `validacao-painel-${Date.now()}`;
@@ -728,6 +748,11 @@ await cenario("22-painel", async () => {
     `);
     checar("22-painel: maioria usa o alcance dos três perfis", maioria);
     checar("22-painel: cabe sem rolagem horizontal em 360 px", await js(`return document.documentElement.scrollWidth <= innerWidth;`));
+    checar("22-painel: tem o botão Salvar em PDF", await js(`return [...document.querySelectorAll("button")].some((b) => b.textContent.includes("Salvar em PDF"));`));
+    await cdp("Emulation.setEmulatedMedia", { media: "print" });
+    const cortaveis = await js(`return [...document.querySelectorAll(".painel .cartao, .painel .numeros-painel")].filter((el) => getComputedStyle(el).breakInside !== "avoid").length;`);
+    await cdp("Emulation.setEmulatedMedia", { media: "" });
+    checar("22-painel: na impressão nenhum cartão do painel pode ser cortado", cortaveis === 0, `${cortaveis} cortáveis`);
   } finally {
     await cdp("Emulation.setDeviceMetricsOverride", { width: 800, height: 1280, deviceScaleFactor: 1, mobile: true });
   }
@@ -744,7 +769,7 @@ await cenario("23-sincronizar", async () => {
   try {
     await rede(true);
     await irPara("/");
-    await passarPelaTranca("1234");
+    await passarPelaTranca();
     const conta = await js(`return JSON.parse(localStorage.getItem("acesso-formula-impacto"));`);
     const id = `validacao-envio-${Date.now()}`;
     const versao = new Date().toISOString();
@@ -811,10 +836,68 @@ await cenario("24-isolamento", async () => {
   checar("24-isolamento: segredo errado de A recebe 401", errado.status === 401);
 });
 
+await cenario("25-login", async () => {
+  if (!SINCRONIZAR) {
+    console.log("pulado 25-login: use SINCRONIZAR=1 para gravar no banco");
+    return;
+  }
+  const marca = Date.now();
+  const usuario = `validacao-${marca}`;
+  const senha = "senha-login-25";
+  const id = `validacao-login-${marca}`;
+  const entrevistado = `Login ${marca}`;
+  await rede(false);
+  await irPara("/");
+  await limparAparelho();
+  await irPara("/");
+  await acessarPelaTela({ nome: "Validação Login", usuario, senha });
+  checar("25-login: aparelho A cria a conta no banco", (await textoDaTela()).includes("Quem você vai entrevistar?"));
+  const conta = await js(`return JSON.parse(localStorage.getItem("acesso-formula-impacto"));`);
+  if (conta?.usuario !== usuario) throw new Error("a conta criada não guardou o usuário");
+  const versao = new Date().toISOString();
+  await guardar("entrevistas", [{
+    id, entrevistadorId: conta.id, entrevistador: conta.nome,
+    perfil: { categoria: "ater", genero: "feminino" }, respostas: { nome: entrevistado, comunidade: "Sítio Login" },
+    iniciadaEm: versao, atualizadaEm: versao, concluidaEm: versao,
+  }]);
+  await js(`window.dispatchEvent(new Event("online")); return true;`);
+  const subiu = await ate(() => js(`
+    try {
+      const conta = JSON.parse(localStorage.getItem("acesso-formula-impacto"));
+      const resposta = await fetch("/api/painel", { headers: { authorization: "Bearer " + conta.id + "." + conta.segredo } });
+      return resposta.ok && (await resposta.json()).entrevistas.some((e) => e.id === ${JSON.stringify(id)});
+    } catch { return false; }
+  `), 20);
+  checar("25-login: entrevista concluída em A chega ao banco", subiu);
+
+  // Aparelho B: o mesmo navegador com tudo apagado, como um computador que nunca abriu o app.
+  await limparAparelho();
+  await irPara("/");
+  await acessarPelaTela({ usuario, senha: "senha-errada-25" });
+  const aviso = await js(`return document.querySelector(".aviso")?.textContent ?? "";`);
+  checar("25-login: senha errada não entra em B", aviso.includes("Usuário ou senha errados") && await js(`return Boolean(document.querySelector("#usuario"));`), aviso);
+  await acessarPelaTela({ usuario, senha });
+  checar("25-login: B entra com usuário e senha", (await textoDaTela()).includes("Quem você vai entrevistar?"));
+
+  await irPara("/painel/");
+  const noPainel = await ate(() => js(`return document.querySelector('[aria-label="Meu painel"] .numeros-painel strong')?.textContent === "1";`), 10);
+  checar("25-login: painel de B mostra a entrevista feita em A", noPainel);
+  await irPara("/consolidado/");
+  const noConsolidado = await ate(async () => (await textoDaTela()).includes(entrevistado), 10);
+  checar("25-login: consolidado de B mostra a entrevista feita em A", noConsolidado);
+
+  await js(`sessionStorage.clear(); return true;`);
+  await irPara("/");
+  await passarPelaTranca("senha-errada-25");
+  checar("25-login: senha errada não destrava B depois do login", await js(`return Boolean(document.querySelector("#senha"));`));
+  await passarPelaTranca(senha);
+  checar("25-login: a senha da conta destrava B", (await textoDaTela()).includes("Quem você vai entrevistar?"));
+});
+
 await cenario("19-csp", async () => {
   await rede(false);
   await irPara("/");
-  await passarPelaTranca("1234");
+  await passarPelaTranca();
   const cabecalho = await js(`
     const resposta = await fetch("/", { cache: "no-store" });
     return resposta.headers.get("content-security-policy");

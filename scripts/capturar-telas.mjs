@@ -36,7 +36,7 @@ const ir = async (rota) => {
 await ir("/");
 await limparAparelho();
 await ir("/");
-await passarPelaTranca("1234");
+await passarPelaTranca();
 await foto("tablet-1-inicio");
 
 for (const rotulo of ["Agricultor(a) familiar", "Jovem (até 29 anos)", "Mulher"]) {
